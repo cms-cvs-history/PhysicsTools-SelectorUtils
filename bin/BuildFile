@@ -2,6 +2,7 @@
 <use name=DataFormats/FWLite>
 <use name=FWCore/Framework>
 <use name=FWCore/FWLite>
+<use name=FWCore/ParameterSet>
 <use name=rootcintex>
 <use name=root> 
 <use name=boost>
