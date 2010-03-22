@@ -10,7 +10,7 @@
   The user can then turn individual cuts on and off at will. 
 
   \author Salvatore Rappoccio
-  \version  $Id: Selector.h,v 1.2 2010/01/12 22:43:17 srappocc Exp $
+  \version  $Id: Selector.h,v 1.3 2010/02/10 20:06:25 srappocc Exp $
 */
 
 
@@ -169,13 +169,13 @@ class Selector : public std::binary_function<T, std::strbitset, bool>  {
 	  icut != cutsEnd; ++icut ) {
       char buff[1000];
       if ( considerCut( icut->first ) ) {
-	sprintf(buff, "%6d : %20s %10d", 
-		icut - cutsBegin,
+	sprintf(buff, "%6lu : %20s %10lu", 
+		static_cast<unsigned long>(icut - cutsBegin),
 		icut->first.c_str(),
-		icut->second );
+		static_cast<unsigned long>(icut->second) );
       } else {
-	sprintf(buff, "%6d : %20s %10s", 
-		icut - cutsBegin,
+	sprintf(buff, "%6lu : %20s %10s", 
+		static_cast<unsigned long>(icut - cutsBegin),
 		icut->first.c_str(),
 		"off" );
       }
