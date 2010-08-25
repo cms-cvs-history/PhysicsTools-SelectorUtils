@@ -13,7 +13,7 @@
   for a general overview of the selectors. 
 
   \author Salvatore Rappoccio (Update: Amnon Harel)
-  \version  $Id: JetIDSelectionFunctor.h,v 1.9 2010/04/25 17:06:33 hegner Exp $
+  \version  $Id: JetIDSelectionFunctor.h,v 1.11 2010/08/09 13:50:05 srappocc Exp $
 */
 
 
@@ -32,6 +32,8 @@ class JetIDSelectionFunctor : public Selector<pat::Jet>  {
 
   enum Version_t { CRAFT08, PURE09, DQM09, N_VERSIONS };
   enum Quality_t { MINIMAL, LOOSE_AOD, LOOSE, TIGHT, N_QUALITY};
+
+  JetIDSelectionFunctor() {}
 
 
   JetIDSelectionFunctor( edm::ParameterSet const & parameters ) {
@@ -209,7 +211,7 @@ class JetIDSelectionFunctor : public Selector<pat::Jet>  {
     if ( version_ == CRAFT08 ) return craft08Cuts( jet.p4(), jet.emEnergyFraction(), jet.jetID(), ret );
     if ( version_ == PURE09 || version_ == DQM09 ) {
       unsigned int nHit = count_hits( jet.getCaloConstituents() );
-      return fwd09Cuts( jet.p4(), jet.emEnergyFraction(), jet.etaetaMoment(), jet.phiphiMoment(), nHit,
+      return fwd09Cuts( jet.correctedP4(pat::JetCorrFactors::Raw), jet.emEnergyFraction(), jet.etaetaMoment(), jet.phiphiMoment(), nHit,
 			jet.jetID(), ret );
     }
     edm::LogWarning( "BadInput | NYI" )<<"Requested version ("<<version_<<") is unknown";
