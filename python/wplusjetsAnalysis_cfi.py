@@ -20,7 +20,7 @@ wplusjetsAnalysis = cms.PSet(
     eleTrig = cms.string('HLT_Ele15_LW_L1R'),
     # tight muons
     muonIdTight = cms.PSet(
-        version = cms.string('SPRING10'),
+        version = cms.string('FALL10'),
         Chi2 = cms.double(10.0),
         D0 = cms.double(0.02),
         ED0 = cms.double(999.0),
@@ -30,9 +30,13 @@ wplusjetsAnalysis = cms.PSet(
         ECalVeto = cms.double(999.0),
         HCalVeto = cms.double(999.0),
         RelIso = cms.double(0.05),
+        LepZ = cms.double(1.0),
+        nPixelHits = cms.int32(1),
+        nMatchedStations=cms.int32(1),
         cutsToIgnore = cms.vstring('ED0', 'SD0', 'ECalVeto', 'HCalVeto'),
         RecalcFromBeamSpot = cms.bool(False),
-        beamLineSrc = cms.InputTag("offlineBeamSpot")
+        beamLineSrc = cms.InputTag("offlineBeamSpot"),
+        pvSrc = cms.InputTag("offlinePrimaryVertices"),
         ),
     # tight electrons
     electronIdTight = cms.PSet(
@@ -45,7 +49,7 @@ wplusjetsAnalysis = cms.PSet(
         ),
     # loose muons
     muonIdLoose = cms.PSet(
-        version = cms.string('SPRING10'),
+        version = cms.string('FALL10'),
         Chi2 = cms.double(999.0),
         D0 = cms.double(999.0),
         ED0 = cms.double(999.0),
@@ -55,9 +59,13 @@ wplusjetsAnalysis = cms.PSet(
         ECalVeto = cms.double(999.0),
         HCalVeto = cms.double(999.0),
         RelIso = cms.double(0.2),
-        cutsToIgnore = cms.vstring('Chi2', 'D0', 'ED0', 'SD0', 'NHits','NValMuHits','ECalVeto','HCalVeto'),
+        LepZ = cms.double(1.0),
+        nPixelHits = cms.int32(1),
+        nMatchedStations=cms.int32(1),        
+        cutsToIgnore = cms.vstring('Chi2', 'D0', 'ED0', 'SD0', 'NHits','NValMuHits','ECalVeto','HCalVeto','LepZ','nPixelHits','nMatchedStations'),
         RecalcFromBeamSpot = cms.bool(False),
-        beamLineSrc = cms.InputTag("offlineBeamSpot")
+        beamLineSrc = cms.InputTag("offlineBeamSpot"),
+        pvSrc = cms.InputTag("offlinePrimaryVertices")
         ),
     # loose electrons
     electronIdLoose = cms.PSet(
