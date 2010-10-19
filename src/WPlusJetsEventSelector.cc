@@ -191,25 +191,51 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	  }
 	}
       }
+      
+      int nMuons = -1;
+      
       for ( std::vector<pat::Muon>::const_iterator muonBegin = muonHandle->begin(),
-	      muonEnd = muonHandle->end(), imuon = muonBegin;
-	    imuon != muonEnd; ++imuon ) {
-	if ( !imuon->isGlobalMuon() ) continue;
+              muonEnd = muonHandle->end(), imuon = muonBegin;
+            imuon != muonEnd; ++imuon ) {
+        nMuons++;
+        if ( !imuon->isGlobalMuon() ) continue;
 
-	// Tight cuts
-	bool passTight = muonIdTight_(*imuon,event) && imuon->isTrackerMuon() ;
-	if (  imuon->pt() > muPtMin_ && fabs(imuon->eta()) < muEtaMax_ && 
-	      passTight) {
-	  
-	  temporaryMuons_.push_back(*imuon);
-	} else {
-	  // Loose cuts
-	  if ( imuon->pt() > muPtMinLoose_ && fabs(imuon->eta()) < muEtaMaxLoose_ && 
-	       muonIdLoose_(*imuon,event) ) {
-	    looseMuons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Muon>( muonHandle, imuon - muonBegin ) ) );
-	  }
-	}
-      }
+        // Tight cuts
+        bool passTight = muonIdTight_(*imuon,event) && imuon->isTrackerMuon() ;
+        if (  imuon->pt() > muPtMin_ && fabs(imuon->eta()) < muEtaMax_ && 
+              passTight) {
+
+          // dereference the iterartor
+          // and get the address of the object it points to
+          //const pat::Muon *tempMuonObj = &(*imuon);
+
+          //cout <<"===================== New event ==========================" <<endl;
+          
+          //cout << "Pushing on a muon object with pt = " << tempMuonObj->pt() << endl;
+
+          //cout << "Muon object has index nMuons = " << nMuons << endl;
+          //cout << "Calculating offset imuon-muonBegin = " << (unsigned) (imuon-muonBegin) << endl;
+          
+          edm::Ptr<pat::Muon> testMuonPtr(muonHandle, nMuons);     
+                                      
+          //cout << "Trying to test that muon object to see if we can use it's ptr" << endl;
+      
+          //cout << "Pt object ptr = " << testMuonPtr->pt() << endl;
+           
+
+        
+          temporaryMuons_.push_back(testMuonPtr);
+          
+        } else {
+          // Loose cuts
+          if ( imuon->pt() > muPtMinLoose_ && fabs(imuon->eta()) < muEtaMaxLoose_ && 
+               muonIdLoose_(*imuon,event) ) {
+            looseMuons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Muon>( muonHandle, imuon - muonBegin ) ) );
+          }
+        }
+
+        
+      }// end for each muon
       
       met_ = reco::ShallowClonePtrCandidate( edm::Ptr<pat::MET>( metHandle, 0),
 					     metHandle->at(0).charge(),
@@ -236,11 +262,13 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	    //Remove some jets
 	    bool indeltaR = false;
 	    
-	    for( std::vector<pat::Muon>::const_iterator muonBegin = temporaryMuons_.begin(),
-		   muonEnd = temporaryMuons_.end(), imuon = muonBegin;
-		 imuon != muonEnd; ++imuon ) {
-	      if( reco::deltaR( imuon->eta(), imuon->phi(), scaledJet.eta(), scaledJet.phi() ) < muJetDRJets_ )
-		{  indeltaR = true; }
+	    for( std::vector< edm::Ptr<pat::Muon> >::const_iterator muonBegin = temporaryMuons_.begin(),
+               muonEnd = temporaryMuons_.end(), imuon = muonBegin;
+             imuon != muonEnd; ++imuon ) {
+          
+          //const pat::Muon * iMuonPtr = (*imuon);
+	      if( reco::deltaR( (*imuon)->eta(), (*imuon)->phi(), scaledJet.eta(), scaledJet.phi() ) < muJetDRJets_ )
+            {  indeltaR = true; }
 	    }
 	    
 	    if( !indeltaR ) {
@@ -251,39 +279,52 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	    //Remove some jets
 	    bool indeltaR = false;
 	    for( std::vector<reco::ShallowClonePtrCandidate>::const_iterator electronBegin = selectedElectrons_.begin(),
-		   electronEnd = selectedElectrons_.end(), ielectron = electronBegin;
-		 ielectron != electronEnd; ++ielectron ) {
+               electronEnd = selectedElectrons_.end(), ielectron = electronBegin;
+             ielectron != electronEnd; ++ielectron ) {
 	      if( reco::deltaR( ielectron->eta(), ielectron->phi(), scaledJet.eta(), scaledJet.phi() ) < eleJetDR_ )
-		{  indeltaR = true; }
+            {  indeltaR = true; }
 	    }
 	    if( !indeltaR ) {
 	      cleanedJets_.push_back( scaledJet );
 	    }// end if jet is not within dR of an electron
 	  }// end if e+jets
-	}// end if pass id and kin cuts
+      }// end if pass id and kin cuts
       }// end loop over jets
 
 
-      for( std::vector<pat::Muon>::const_iterator muonBegin = temporaryMuons_.begin(),
-           muonEnd = temporaryMuons_.end(), imuon = muonBegin;
-         imuon != muonEnd; ++imuon ) {
+      for( std::vector< edm::Ptr<pat::Muon> >::const_iterator muonBegin = temporaryMuons_.begin(),
+             muonEnd = temporaryMuons_.end(), imuon = muonBegin;
+           imuon != muonEnd; ++imuon ) {
+
+        //const pat::Muon * iMuonPtr = (*imuon);
 
         //Now, check that the muon isn't within muJetDRMuon_ of any jet
         bool inDeltaR_final = false;
         for (std::vector<reco::ShallowClonePtrCandidate>::const_iterator iJet = cleanedJets_.begin();
              iJet != cleanedJets_.end(); ++iJet) {
-	  if ( reco::deltaR(imuon->eta(), imuon->phi(), iJet->eta(), iJet->phi()) < muJetDRMuon_ ) inDeltaR_final = true;
-	}
+          if ( reco::deltaR((*imuon)->eta(), (*imuon)->phi(), iJet->eta(), iJet->phi()) < muJetDRMuon_ ) inDeltaR_final = true;
+        }
         if (  !inDeltaR_final  ){
-          selectedMuons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Muon>( muonHandle, imuon - muonBegin ) ) );
+
+          //cout << " You have successfully gotten the originalObjectRef from an object with Pt = " << (*imuon)->pt() <<  endl;
+          
+          
+          selectedMuons_.push_back( reco::ShallowClonePtrCandidate((*imuon)) );
         } 
-	else {
-	  // Loose cuts
-	  if ( imuon->pt() > muPtMinLoose_ && fabs(imuon->eta()) < muEtaMaxLoose_ &&
-	       muonIdLoose_(*imuon,event) ) {
-	    looseMuons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Muon>( muonHandle, imuon - muonBegin ) ) );
-	  }
-	}
+        else {
+          
+          // Loose cuts
+          // **imuon is a double dereference
+          // de-reference the iterator
+          // de-reference the Ptr
+          // end result is a pat muon
+          
+          if ( (*imuon)->pt() > muPtMinLoose_ && fabs((*imuon)->eta()) < muEtaMaxLoose_ &&
+               muonIdLoose_( (**imuon), event) ) {
+            // put me back in soon
+            looseMuons_.push_back( reco::ShallowClonePtrCandidate((*imuon)) );
+          }
+        }
       }
       
 
