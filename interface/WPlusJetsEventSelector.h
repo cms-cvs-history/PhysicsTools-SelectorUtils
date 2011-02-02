@@ -16,6 +16,12 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "DataFormats/Candidate/interface/ShallowClonePtrCandidate.h"
 
+//==== JMS added Dec 10 to handle new JEC uncertainties 
+#include "CondFormats/JetMETObjects/interface/JetCorrectorParameters.h"
+#include "CondFormats/JetMETObjects/interface/FactorizedJetCorrector.h"
+#include "CondFormats/JetMETObjects/interface/JetCorrectionUncertainty.h"
+
+
 class WPlusJetsEventSelector : public EventSelector {
  public:
   WPlusJetsEventSelector() {}
@@ -49,7 +55,13 @@ class WPlusJetsEventSelector : public EventSelector {
     out << "PF Jet Selector: " << std::endl;
     pfjetIdLoose_.print(out);
   }
- 
+
+
+  // this function will look up the parameterized JES
+  // uncertainty for you and allow you to access it
+  double getPtEtaJESUncert ( pat::Jet anyJet );
+
+  
  protected: 
 
   edm::InputTag               muonTag_;
@@ -80,6 +92,22 @@ class WPlusJetsEventSelector : public EventSelector {
   JetIDSelectionFunctor                jetIdLoose_;
   PFJetIDSelectionFunctor              pfjetIdLoose_;
 
+
+
+  // JMS Dec 9 2010 Jet Corrections
+
+  FactorizedJetCorrector *JEC_;
+  JetCorrectionUncertainty * jecUnc;
+  std::string L2RelCorFacFile_;
+  std::string L3AbsCorFacFile_;
+  std::string ResidAbsCorFacFile_;
+  std::string JECUncertaintyFile_;
+
+  std::string fancyJES;
+  double flatAdditionalUncer_;
+
+  
+  
   int minJets_;
 
   double muJetDRJets_;
@@ -103,6 +131,8 @@ class WPlusJetsEventSelector : public EventSelector {
   double jetEtaMax_;
 
   double jetScale_;
+
+  double jerFactor_;
 
   double metMin_;
 
