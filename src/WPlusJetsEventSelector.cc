@@ -39,6 +39,7 @@ WPlusJetsEventSelector::WPlusJetsEventSelector( edm::ParameterSet const & params
   jetPtMin_        (params.getParameter<double>("jetPtMin")), 
   jetEtaMax_       (params.getParameter<double>("jetEtaMax")), 
   jetScale_        (params.getParameter<double>("jetScale")),
+  jerFactor_        (params.getParameter<double>("jerFactor")),
   metMin_          (params.getParameter<double>("metMin"))
 {
   // make the bitset
@@ -98,6 +99,71 @@ WPlusJetsEventSelector::WPlusJetsEventSelector( edm::ParameterSet const & params
 
   if ( params.exists("cutsToIgnore") )
     setIgnoredCuts( params.getParameter<std::vector<std::string> >("cutsToIgnore") );
+
+
+
+  // Load up your correction files that have been dumped from the DB
+  // hard-coded for now
+  
+  L2RelCorFacFile_ = "START38_V13_AK5PF_L2Relative.txt";
+  L3AbsCorFacFile_ = "START38_V13_AK5PF_L3Absolute.txt";
+  ResidAbsCorFacFile_ = "START38_V13_AK5PF_L2L3Residual.txt" ;
+  JECUncertaintyFile_ = "START38_V13_AK5PF_Uncertainty.txt" ;
+  
+  edm::FileInPath L2file (L2RelCorFacFile_);
+  edm::FileInPath L3file (L3AbsCorFacFile_);
+  edm::FileInPath Residfile (ResidAbsCorFacFile_);
+
+  // Make jet correctors out of the files
+  
+  JetCorrectorParameters *L2param = new JetCorrectorParameters(L2file.fullPath());
+  JetCorrectorParameters *L3param = new JetCorrectorParameters(L3file.fullPath());
+  JetCorrectorParameters *ResidParam = new JetCorrectorParameters(Residfile.fullPath());
+
+
+  // Put the jet corretors together into a factorized jet corrector object
+  
+  vector<JetCorrectorParameters> vParam;
+  vParam.push_back(*L2param);
+  vParam.push_back(*L3param);
+
+
+  //vParam.push_back(*ResidParam);
+
+  JEC_ = new FactorizedJetCorrector(vParam);
+
+
+  // Load up an uncertainty object too
+  
+  jecUnc = new JetCorrectionUncertainty(JECUncertaintyFile_);
+
+  // See if the config file requests a valid form of fancy JES.
+  // Check to see that the request is for a valid type
+  
+  fancyJES = "none";
+  // Just define this to be something
+  // hard-code it in
+  // it might change in the future
+  // note that this flat uncertainty
+  // tends to overwhelm the regular uncertainty
+  flatAdditionalUncer_ = 0.053;
+  if ( params.exists("fancyJES") ){
+    std::string configFancyJES = params.getParameter< std::string >("fancyJES");
+
+    if (configFancyJES == "up" ||
+        configFancyJES == "down" ||
+        configFancyJES == "none") {
+      fancyJES = configFancyJES;      
+      std::cout << "FANCY JES ---- using setting      " << fancyJES << std::endl;      
+    } else {
+      std::cout << "FANCY JES ---- you requested setting     "  << fancyJES << std::endl
+                << "   but I don't know how to use that seting, exiting" << std:: endl;
+
+      exit(33);
+      
+    }
+  }
+  
 	
 
   retInternal_ = getBitTemplate();
@@ -245,12 +311,134 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
       event.getByLabel (jetTag_, jetHandle);
       pat::strbitset ret1 = jetIdLoose_.getBitTemplate();
       pat::strbitset ret2 = pfjetIdLoose_.getBitTemplate();
+      
+      // numJet starts at -1, and is incremented at the top of the loop
+      unsigned int numJet = -1;
+
+
+      bool printJES = false;
+
+        
+     
+      
+      if (printJES) std::cout << "============= NEW EVENT ================"  << std::endl << std::endl;
+        
       for ( std::vector<pat::Jet>::const_iterator jetBegin = jetHandle->begin(),
 	      jetEnd = jetHandle->end(), ijet = jetBegin;
 	    ijet != jetEnd; ++ijet ) {
-	reco::ShallowClonePtrCandidate scaledJet ( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Jet>( jetHandle, ijet - jetBegin ),
-										   ijet->charge(),
-										   ijet->p4() * jetScale_ ) );    
+
+	const reco::GenJet *myGenJet = ijet->genJet();
+	numJet++;
+
+        //-------  Print out some JEC information
+        //-------   
+        //------- 
+
+        std::string jecSet   = ijet->currentJECSet();
+        std::string jecLevel = ijet->currentJECLevel();
+        const std::vector<std::string> myAvailJECLevels = ijet->availableJECLevels();
+        
+        if (printJES) std::cout << "=============     Jet # "     << numJet      << "    ================"  << std::endl << std::endl
+                                << "Pt, eta, phi            = "   << ijet->pt() << ", " << ijet->eta() << ", " << ijet->phi() << std::endl 
+                                << "Current JEC Settings    = "   << jecSet    << std::endl
+                                << "Current JEC Level       = "   << jecLevel  << std::endl
+                                << "Current JEC factor      = "   << ijet->jecFactor(jecLevel) << std::endl
+                                << "Looping over JEC levels..." << std::endl;
+
+        unsigned int nLevels = -1;
+        double factorToGetBackToRawEnergy = 1.0;
+        for (std::vector<std::string>::const_iterator iLevel = myAvailJECLevels.begin();
+             iLevel != myAvailJECLevels.end();
+             iLevel++ ) {
+          nLevels++;
+          if (printJES)  std::cout << "Level " << nLevels << " is " << (*iLevel) << " corr factor = " << ijet->jecFactor((*iLevel)) << std::endl;
+
+          if (nLevels == 0) {
+            factorToGetBackToRawEnergy = ijet->jecFactor((*iLevel));
+          }
+        }
+
+        double ptScale = 1.0; // start at 1.0, we multiply in JES later
+        
+        //Now let's evaluate JER
+        if (myGenJet) { //Make sure we actually have one of these
+          if (myGenJet->pt() > 15) { //That's what the Twiki says...
+            double deltaPt = (ijet->pt() - myGenJet->pt()) * jerFactor_;
+            ptScale *= max(0.0, (ijet->pt() + deltaPt) / ijet->pt());
+            
+            if (printJES) std::cout << "JER --- jer factor is " <<  jerFactor_ << ", Jet reco pt is " << ijet->pt()
+                                    << "gen jet pt is " << myGenJet->pt() <<endl
+                                    << "Delta Pt = " << deltaPt << endl;
+        
+          }
+          
+        }
+        
+        if (printJES) std::cout << "RAW Jet et is " << ijet->pt()*factorToGetBackToRawEnergy << std::endl;
+        
+        JEC_->setJetEta(ijet->eta());
+        JEC_->setJetPt(ijet->pt()*factorToGetBackToRawEnergy);
+        jecUnc->setJetEta(ijet->eta());
+        jecUnc->setJetPt(ijet->pt()*factorToGetBackToRawEnergy);
+        
+        float overAllCorr = JEC_->getCorrection();
+        // you need to set this twice if you call
+        // two different functions
+        JEC_->setJetEta(ijet->eta());
+        JEC_->setJetPt(ijet->pt()*factorToGetBackToRawEnergy);
+
+        std::vector<float> myCorrFactors = JEC_->getSubCorrections();
+        double uncert = jecUnc->getUncertainty(true);
+
+        if (flatAdditionalUncer_ > 0) {
+          uncert = sqrt(uncert*uncert + flatAdditionalUncer_*flatAdditionalUncer_);
+        }
+
+        if (printJES)  std::cout << "Overall Corr factor from new imported file JEC is   "
+                                 << overAllCorr << std::endl
+                                 << " with uncertainty =    "
+                                 << uncert << std::endl;
+        
+        
+        for (unsigned i = 0; i < myCorrFactors.size(); i++) {
+          if (printJES)  std::cout << "Corr factor " << i  << "     =       " << myCorrFactors[i] << std::endl;
+        }
+        
+
+        // Decide how you want to scale the JES
+
+        double scaleJetEnergy = 1.0;
+
+        // none = if you're not doing it the fancy way, do it the plain way
+        // up = add the uncertainty to 1.0
+        // down = subtract the uncertainty from 1.0
+        
+        if (fancyJES == "none") {
+          scaleJetEnergy = jetScale_;          
+        } else if (fancyJES == "up") {
+          scaleJetEnergy = 1 + uncert;          
+        } else if (fancyJES == "down") {
+          scaleJetEnergy = 1 - uncert;
+        }
+
+        // Now that you have the jes piece accounted for
+        // add in the piece for the JER uncertainty
+
+        if (printJES) std::cout << "JER --- pt scale is " << ptScale << std::endl
+                                << "JER --- jes scale is " << scaleJetEnergy << std::endl;
+        
+        scaleJetEnergy *= ptScale;
+
+        
+        
+        if (printJES) std::cout << "You are scaling the Jets by:     "  << scaleJetEnergy    << std::endl;
+        
+        reco::ShallowClonePtrCandidate scaledJet ( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Jet>( jetHandle, ijet - jetBegin ),
+                                                                                   ijet->charge(),
+                                                                                   ijet->p4() * scaleJetEnergy ) );
+
+
+    
 	bool passJetID = false;
 	  if ( ijet->isCaloJet() || ijet->isJPTJet() ) passJetID = jetIdLoose_(*ijet, ret1);
 	  else passJetID = pfjetIdLoose_(*ijet, ret2);
@@ -448,4 +636,21 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
   setIgnored(ret);
 
   return (bool)ret;
+}
+
+
+double WPlusJetsEventSelector::getPtEtaJESUncert ( pat::Jet  anyJet ) {
+
+  const std::vector<std::string> myAvailJECLevels = anyJet.availableJECLevels();
+
+  double factorToGetBackToRawEnergy = anyJet.jecFactor(myAvailJECLevels[0]);
+  
+  jecUnc->setJetEta(anyJet.eta());
+  jecUnc->setJetPt(anyJet.pt()*factorToGetBackToRawEnergy);
+  double uncert = jecUnc->getUncertainty(true);
+  if (flatAdditionalUncer_ > 0) {
+    uncert = sqrt(uncert*uncert + flatAdditionalUncer_*flatAdditionalUncer_);
+  }
+  return uncert;
+  
 }
