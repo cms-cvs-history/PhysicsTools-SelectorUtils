@@ -95,18 +95,13 @@ class WPlusJetsEventSelector : public EventSelector {
 
 
   // JMS Dec 9 2010 Jet Corrections
+  // KPL removed JEC and just left uncertainties
 
-  FactorizedJetCorrector *JEC_;
-  JetCorrectionUncertainty * jecUnc;
-  std::string L2RelCorFacFile_;
-  std::string L3AbsCorFacFile_;
-  std::string ResidAbsCorFacFile_;
+  JetCorrectionUncertainty *jecUnc_;
   std::string JECUncertaintyFile_;
 
-  std::string fancyJES;
+  std::string fancyJES_;
   double flatAdditionalUncer_;
-
-  
   
   int minJets_;
 
