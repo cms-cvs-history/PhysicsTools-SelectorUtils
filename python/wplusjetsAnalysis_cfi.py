@@ -96,7 +96,8 @@ wplusjetsAnalysis = cms.PSet(
     jetScale       = cms.double( 1.0 ),
 	fancyJES       = cms.string('none'),
 	JECUncertaintyFile = cms.string('START38_V13_AK5PF_Uncertainty.txt'),
-	flatAdditionalUncer = cms.double(0.053),
+    # Used to be useful, but not applied now
+	flatAdditionalUncer = cms.double(0.00),
 	jerFactor      = cms.double(0.0),
     metMin         = cms.double( 0.0 ),
     muJetDRJets    = cms.double( 0.0 ),
