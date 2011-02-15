@@ -272,7 +272,12 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
       event.getByLabel (jetTag_, jetHandle);
       pat::strbitset ret1 = jetIdLoose_.getBitTemplate();
       pat::strbitset ret2 = pfjetIdLoose_.getBitTemplate();
-              
+
+
+      bool jetDebug = false;
+
+      if (jetDebug) cout << "====================NEW LOOP OVER JETS=====================" << endl;
+      
       for ( std::vector<pat::Jet>::const_iterator jetBegin = jetHandle->begin(),jetEnd = jetHandle->end(), ijet = jetBegin;
             ijet != jetEnd; ++ijet ) {
 
@@ -302,9 +307,49 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
           
           double uncert = jecUnc_->getUncertainty(true);
 
-          if (flatAdditionalUncer_ > 0) {
-            uncert = sqrt(uncert*uncert + flatAdditionalUncer_*flatAdditionalUncer_);
+          double softwareUncert = 0.015;
+          double pileUpUncert = (0.75 * 0.8 * 2.2) / ijet->pt();
+          // method defined with british spelling only
+          int jetFlavor = ijet->partonFlavour();
+          double bjetUncert = 0.0;
+
+
+          if ( abs(jetFlavor) == 5 ) {
+
+            if ( ijet->pt() > 50 && ijet->pt() < 200 && fabs(ijet->eta()) < 2.0) {
+              bjetUncert = 0.02;
+            } else {
+              bjetUncert = 0.03;
+            }
           }
+          
+          if (jetDebug) cout << "  jet flavor is = " << jetFlavor << endl
+                             << "  pile up uncert = " << pileUpUncert << endl
+                             << "  bjet uncert = " << bjetUncert << endl
+                             << "    jet pt = " << ijet->pt() << endl
+                             << "    jet eta = " << ijet->eta() << endl
+                             << "  flat uncert = " << flatAdditionalUncer_ << endl
+                             << "  software uncert = " << softwareUncert << endl
+                             << "  baseline uncert = " << uncert << endl;
+
+
+          if (flatAdditionalUncer_ > 0) {
+            uncert = sqrt(uncert*uncert
+                          + flatAdditionalUncer_*flatAdditionalUncer_
+                          + softwareUncert*softwareUncert
+                          + pileUpUncert*pileUpUncert
+                          + bjetUncert*bjetUncert);
+          } else {
+
+            uncert = sqrt (uncert*uncert
+                           + softwareUncert*softwareUncert
+                           + pileUpUncert*pileUpUncert
+                           + bjetUncert*bjetUncert);
+          }
+
+
+          if (jetDebug) cout << "  *** TOTAL = " << uncert << endl << endl << endl;
+          
           if (fancyJES_ == "up") {
             ptScale *= (1 + uncert);          
           } else if (fancyJES_ == "down") {
