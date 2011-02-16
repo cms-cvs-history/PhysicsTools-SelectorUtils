@@ -569,9 +569,41 @@ double WPlusJetsEventSelector::getPtEtaJESUncert ( pat::Jet  anyJet ) {
     jecUnc_->setJetEta(anyJet.eta());
     jecUnc_->setJetPt(anyJet.pt());
     double uncert = jecUnc_->getUncertainty(true);
-    if (flatAdditionalUncer_ > 0) {
-      uncert = sqrt(uncert*uncert + flatAdditionalUncer_*flatAdditionalUncer_);
+
+
+    double softwareUncert = 0.015;
+    double pileUpUncert = (0.75 * 0.8 * 2.2) / anyJet.pt();
+    // method defined with british spelling only
+    int jetFlavor = anyJet.partonFlavour();
+    double bjetUncert = 0.0;
+
+
+    if ( abs(jetFlavor) == 5 ) {
+
+      if ( anyJet.pt() > 50 && anyJet.pt() < 200 && fabs(anyJet.eta()) < 2.0) {
+        bjetUncert = 0.02;
+      } else {
+        bjetUncert = 0.03;
+      }
     }
+          
+
+    if (flatAdditionalUncer_ > 0) {
+      uncert = sqrt(uncert*uncert
+                    + flatAdditionalUncer_*flatAdditionalUncer_
+                    + softwareUncert*softwareUncert
+                    + pileUpUncert*pileUpUncert
+                    + bjetUncert*bjetUncert);
+    } else {
+
+      uncert = sqrt (uncert*uncert
+                     + softwareUncert*softwareUncert
+                     + pileUpUncert*pileUpUncert
+                     + bjetUncert*bjetUncert);
+    }
+
+    
+    
     return uncert;
   } else {
     return -1.;
