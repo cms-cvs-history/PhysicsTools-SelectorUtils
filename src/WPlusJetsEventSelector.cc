@@ -268,6 +268,9 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
                                              metHandle->at(0).charge(),
                                              metHandle->at(0).p4() );
 
+      double deltaPx = 0.0;
+      double deltaPy = 0.0;
+      double deltaSumEt = 0.0;
 
       event.getByLabel (jetTag_, jetHandle);
       pat::strbitset ret1 = jetIdLoose_.getBitTemplate();
@@ -282,14 +285,13 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
             ijet != jetEnd; ++ijet ) {
 
         double ptScale = 1.0; // start at 1.0, we multiply in JES later
-        
         //Now let's evaluate JER
         if (jerFactor_ > 0.) {
           const reco::GenJet *myGenJet = ijet->genJet();
           if (myGenJet) { //Make sure we actually have one of these
             if (myGenJet->pt() > 15) { //That's what the Twiki says...
               double deltaPt = (ijet->pt() - myGenJet->pt()) * jerFactor_;
-              ptScale *= max(0.0, (ijet->pt() + deltaPt) / ijet->pt());            
+              ptScale *= max(0.0, (ijet->pt() + deltaPt) / ijet->pt());  
             }
             
           }
@@ -357,6 +359,11 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
           }
         }
 
+	pat::Jet iRawJet = ijet->correctedJet("Uncorrected");
+	deltaPx += ijet->px() * (1-ptScale);
+	deltaPy += ijet->py() * (1-ptScale);
+	deltaSumEt += ijet->et() *(1-ptScale);      
+
         reco::ShallowClonePtrCandidate scaledJet ( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Jet>( jetHandle, ijet - jetBegin ),
                                                                                    ijet->charge(),
                                                                                    ijet->p4() * ptScale ) );
@@ -382,7 +389,7 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
               if( reco::deltaR( (*imuon)->eta(), (*imuon)->phi(), scaledJet.eta(), scaledJet.phi() ) < muJetDRJets_ )
                 {  indeltaR = true; }
             }
-	    
+
             if( !indeltaR ) {
               cleanedJets_.push_back( scaledJet );
             }// end if jet is not within dR of a muon
@@ -403,6 +410,18 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
         }// end if pass id and kin cuts
       }// end loop over jets
 
+
+      double corrPx = met_.px() + deltaPx;
+      double corrPy = met_.py() + deltaPy;
+      reco::Particle::LorentzVector corrMetLV (corrPx,
+					       corrPy,
+					       0,
+					       sqrt(corrPx*corrPx + corrPy*corrPy)
+					       );
+      
+      met_ = reco::ShallowClonePtrCandidate( edm::Ptr<pat::MET>( metHandle, 0),
+					     metHandle->at(0).charge(),
+					     corrMetLV);
 
       for( std::vector< edm::Ptr<pat::Muon> >::const_iterator muonBegin = temporaryMuons_.begin(),
              muonEnd = temporaryMuons_.end(), imuon = muonBegin;
