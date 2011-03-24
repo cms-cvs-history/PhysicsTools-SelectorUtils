@@ -16,6 +16,12 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "DataFormats/Candidate/interface/ShallowClonePtrCandidate.h"
 
+//==== JMS added Dec 10 to handle new JEC uncertainties 
+#include "CondFormats/JetMETObjects/interface/JetCorrectorParameters.h"
+#include "CondFormats/JetMETObjects/interface/FactorizedJetCorrector.h"
+#include "CondFormats/JetMETObjects/interface/JetCorrectionUncertainty.h"
+
+
 class WPlusJetsEventSelector : public EventSelector {
  public:
   WPlusJetsEventSelector() {}
@@ -29,6 +35,7 @@ class WPlusJetsEventSelector : public EventSelector {
   std::vector<reco::ShallowClonePtrCandidate> const & selectedJets     () const { return selectedJets_;     } 
   std::vector<reco::ShallowClonePtrCandidate> const & cleanedJets      () const { return cleanedJets_;      } 
   std::vector<reco::ShallowClonePtrCandidate> const & selectedElectrons() const { return selectedElectrons_;}
+  std::vector< edm::Ptr<pat::Muon> >                      const & temporaryMuons   () const { return temporaryMuons_; }
   std::vector<reco::ShallowClonePtrCandidate> const & selectedMuons    () const { return selectedMuons_;    }
   reco::ShallowClonePtrCandidate const &              selectedMET      () const { return met_; }
 
@@ -48,7 +55,13 @@ class WPlusJetsEventSelector : public EventSelector {
     out << "PF Jet Selector: " << std::endl;
     pfjetIdLoose_.print(out);
   }
- 
+
+
+  // this function will look up the parameterized JES
+  // uncertainty for you and allow you to access it
+  double getPtEtaJESUncert ( pat::Jet anyJet );
+
+  
  protected: 
 
   edm::InputTag               muonTag_;
@@ -61,6 +74,7 @@ class WPlusJetsEventSelector : public EventSelector {
   std::string                 eleTrig_;
 
   std::vector<reco::ShallowClonePtrCandidate> selectedJets_;
+  std::vector< edm::Ptr<pat::Muon> >                      temporaryMuons_;
   std::vector<reco::ShallowClonePtrCandidate> selectedMuons_;
   std::vector<reco::ShallowClonePtrCandidate> selectedElectrons_;
   std::vector<reco::ShallowClonePtrCandidate> looseMuons_;
@@ -78,9 +92,21 @@ class WPlusJetsEventSelector : public EventSelector {
   JetIDSelectionFunctor                jetIdLoose_;
   PFJetIDSelectionFunctor              pfjetIdLoose_;
 
+
+
+  // JMS Dec 9 2010 Jet Corrections
+  // KPL removed JEC and just left uncertainties
+
+  JetCorrectionUncertainty *jecUnc_;
+  std::string JECUncertaintyFile_;
+
+  std::string fancyJES_;
+  double flatAdditionalUncer_;
+  
   int minJets_;
 
-  double muJetDR_;
+  double muJetDRJets_;
+  double muJetDRMuon_;
   double eleJetDR_;
 
   bool muPlusJets_;
@@ -100,6 +126,8 @@ class WPlusJetsEventSelector : public EventSelector {
   double jetEtaMax_;
 
   double jetScale_;
+
+  double jerFactor_;
 
   double metMin_;
 
