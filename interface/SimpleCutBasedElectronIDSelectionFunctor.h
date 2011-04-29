@@ -62,8 +62,8 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
 
  public: // interface  
   
-  enum Version_t { relIso95=0, cIso95,  relIso90, cIso90, relIso85, cIso85, 
-		   relIso80, cIso80,  relIso70, cIso70, relIso60, cIso60, NONE };
+  enum Version_t { relIso95=0, trkIso95, cIso95,  relIso90, cIso90, relIso85, cIso85, 
+		   relIso80, trkIso80, cIso80,  relIso70, cIso70, relIso60, cIso60, NONE };
   
   SimpleCutBasedElectronIDSelectionFunctor() {}
   
@@ -154,6 +154,33 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
       
       set("conversionRejection",            0);
       set("maxNumberOfExpectedMissingHits", 1);
+
+    }
+    else if (version_ == trkIso95) {
+      set("trackIso_EB", 2.0e-01);
+      //set("ecalIso_EB",  2.0e+00);
+      //set("hcalIso_EB",  1.2e-01);
+      set("ecalIso_EB",  100000.);
+      set("hcalIso_EB",  100000.);
+      set("sihih_EB",    1.0e-02);
+      set("dphi_EB",     8.0e-01);
+      set("deta_EB",     7.0e-03);
+      set("hoe_EB",      1.5e-01);
+      set("cIso_EB",     10000. );
+      
+      set("trackIso_EE", 2.0e-01);
+      //set("ecalIso_EE",  6.0e-02);
+      //set("hcalIso_EE",  5.0e-02);
+      set("ecalIso_EE",  100000.);
+      set("hcalIso_EE",  100000.);
+      set("sihih_EE",    3.0e-02);
+      set("dphi_EE",     7.0e-01);
+      set("deta_EE",     1.0e-02);
+      set("hoe_EE",      7.0e-02);
+      set("cIso_EE",     10000. );
+      
+      set("conversionRejection",            0);
+      set("maxNumberOfExpectedMissingHits", 10);
 
     }
     else if (version_ == cIso95) {
@@ -280,6 +307,32 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
       set("trackIso_EE", 4.0e-02);
       set("ecalIso_EE",  5.0e-02);
       set("hcalIso_EE",  2.5e-02);
+      set("sihih_EE",    3.0e-02);
+      set("dphi_EE",     3.0e-02);
+      set("deta_EE",     7.0e-03);
+      set("hoe_EE",      2.5e-02);
+      set("cIso_EE",     100000.);
+      
+      set("conversionRejection",            1);
+      set("maxNumberOfExpectedMissingHits", 0);
+    }
+    else if (version_ == trkIso80) {
+      set("trackIso_EB", 1.0e-01);
+      //set("ecalIso_EB",  7.0e-02);
+      //set("hcalIso_EB",  1.0e-01);
+      set("ecalIso_EB",  100000.);
+      set("hcalIso_EB",  100000.);
+      set("sihih_EB",    1.0e-02);
+      set("dphi_EB",     6.0e-02);
+      set("deta_EB",     4.0e-03);
+      set("hoe_EB",      4.0e-02);
+      set("cIso_EB",     100000.);
+
+      set("trackIso_EE", 1.0e-01);
+      //set("ecalIso_EE",  5.0e-02);
+      //set("hcalIso_EE",  2.5e-02);
+      set("ecalIso_EE",  100000.);
+      set("hcalIso_EE",  100000.);
       set("sihih_EE",    3.0e-02);
       set("dphi_EE",     3.0e-02);
       set("deta_EE",     7.0e-03);
