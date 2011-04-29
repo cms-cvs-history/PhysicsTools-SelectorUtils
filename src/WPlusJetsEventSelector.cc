@@ -1,5 +1,6 @@
  
 #include "PhysicsTools/SelectorUtils/interface/WPlusJetsEventSelector.h"
+#include "PhysicsTools/SelectorUtils/interface/SimpleCutBasedElectronIDSelectionFunctor.h"
 #include "DataFormats/Candidate/interface/ShallowCloneCandidate.h"
 
 #include <iostream>
@@ -32,6 +33,7 @@ WPlusJetsEventSelector::WPlusJetsEventSelector( edm::ParameterSet const & params
   eleJetDR_        (params.getParameter<double>("eleJetDR")),
   muPlusJets_      (params.getParameter<bool>("muPlusJets") ),
   ePlusJets_       (params.getParameter<bool>("ePlusJets") ),
+  isHWW_           (params.getParameter<bool>("isHWW") ),
   muPtMin_         (params.getParameter<double>("muPtMin")), 
   muEtaMax_        (params.getParameter<double>("muEtaMax")), 
   eleEtMin_        (params.getParameter<double>("eleEtMin")), 
@@ -172,9 +174,6 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
       }
     }
   }
-
-
-
   
   if ( ignoreCut(triggerIndex_) || 
        passTrig ) {
@@ -206,17 +205,57 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
             ielectron != electronEnd; ++ielectron ) {
         ++nElectrons;
         // Tight cuts
-        if ( ielectron->et() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
-             electronIdTight_(*ielectron) &&
-             ielectron->electronID( "eidRobustTight" ) > 0  ) {
-          selectedElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
-        } else {
-          // Loose cuts
-          if ( ielectron->et() > eleEtMinLoose_ && fabs(ielectron->eta()) < eleEtaMaxLoose_ && 
-               electronIdLoose_(*ielectron) ) {
-            looseElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
-          }
-        }
+
+	if(isHWW_){
+	  bool passIDLoose = false;
+	  bool passID = false;
+	  
+	  // Calculate 
+	  reco::TrackBase::Point beamPoint(0,0,0);
+	  reco::BeamSpot beamSpot;
+	  edm::Handle<reco::BeamSpot> beamSpotHandle;
+	  event.getByLabel(edm::InputTag("offlineBeamSpot"), beamSpotHandle);
+	  if( beamSpotHandle.isValid() ){
+	    beamSpot = *beamSpotHandle;
+	  } else{
+	    edm::LogError("DataNotAvailable")
+	      << "No beam spot available from EventSetup, not adding high level selection \n";
+	  }
+	  beamPoint = reco::TrackBase::Point ( beamSpot.x0(), beamSpot.y0(), beamSpot.z0() );
+	  double d0bs = ielectron->gsfTrack()->dxy(beamPoint);
+	  
+	  SimpleCutBasedElectronIDSelectionFunctor patSele95(SimpleCutBasedElectronIDSelectionFunctor::trkIso95);
+	  SimpleCutBasedElectronIDSelectionFunctor patSele80(SimpleCutBasedElectronIDSelectionFunctor::trkIso80);
+	  
+	  passIDLoose = patSele95(*ielectron);
+	  passID = patSele80(*ielectron);
+	  
+	  if ( ielectron->et() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
+	       (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) &&
+	       passID && fabs(d0bs) < 0.02) {
+	    selectedElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
+	  } else {
+	    // Loose cuts
+	    if ( ielectron->et() > eleEtMinLoose_ && fabs(ielectron->eta()) < eleEtaMaxLoose_ && 
+		 (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) &&
+		 passIDLoose) {
+	      looseElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
+	    }
+	  }
+	}
+	else {
+	  if ( ielectron->et() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
+	       electronIdTight_(*ielectron) &&
+	       ielectron->electronID( "eidRobustTight" ) > 0  ) {
+	    selectedElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
+	  } else {
+	    // Loose cuts
+	    if ( ielectron->et() > eleEtMinLoose_ && fabs(ielectron->eta()) < eleEtaMaxLoose_ && 
+		 electronIdLoose_(*ielectron) ) {
+	      looseElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
+	    }
+	  }	  
+	}
       }
       
       int nMuons = -1;
@@ -460,6 +499,7 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
       
 
       int nleptons = 0;
+      bool passlepton = false;
       if ( muPlusJets_ )
         nleptons += selectedMuons_.size();
       
@@ -487,88 +527,108 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
             ( selectedMuons_.size() == 1 && 
               looseMuons_.size() == 0 
               );
-
-
-          if ( ignoreCut(lep3Index_) || 
-               ePlusJets_ ||
-               (muPlusJets_ && oneMuonMuVeto)
-               ) {
-            passCut(ret, lep3Index_);
-
-            if ( ignoreCut(lep4Index_) || 
-                 ( (muPlusJets_ && oneMuon) ^ (ePlusJets_ && oneElectron )  )
-                 ) {
-              passCut(ret, lep4Index_);	  
-
-              bool metCut = met_.pt() > metMin_;
-              if ( ignoreCut(metIndex_) ||
-                   metCut ) {
-                passCut( ret, metIndex_ );
+	  if(isHWW_){
+	    if ( ignoreCut(lep3Index_) || 
+		 (ePlusJets_ && selectedMuons_.size() == 0 && looseMuons_.size() == 0) ||
+		 (muPlusJets_ && oneMuonMuVeto)
+		 ) {
+	      passCut(ret, lep3Index_);
+	      
+	      if ( ignoreCut(lep4Index_) || 
+		   ( (muPlusJets_ &&  selectedElectrons_.size() == 0 && looseElectrons_.size() == 0) ^ 
+		     (ePlusJets_ && selectedElectrons_.size() == 1 && looseElectrons_.size() == 0 )  )
+		   //( (muPlusJets_ && oneMuon) ^ (ePlusJets_ && oneElectron )  )
+		   
+		   ) {
+		passCut(ret, lep4Index_);   
+		passlepton = true;
+	      }	      
+	    }
+	  }
+	  else {
+	    if ( ignoreCut(lep3Index_) || 
+		 ePlusJets_ ||
+		 (muPlusJets_ && oneMuonMuVeto)
+		 ) {
+	      passCut(ret, lep3Index_);
+	      
+	      if ( ignoreCut(lep4Index_) || 
+		   ( (muPlusJets_ && oneMuon) ^ (ePlusJets_ && oneElectron )  )
+		   ) {
+		passCut(ret, lep4Index_);	  
+		passlepton = true;
+	      }
+	    }
+	  }
 	  
+	  if(passlepton){
+	    bool metCut = met_.pt() > metMin_;
+	    if ( ignoreCut(metIndex_) ||
+		 metCut ) {
+	      passCut( ret, metIndex_ );
+	      
 
-                bool zVeto = true;
-                if ( selectedMuons_.size() == 2 ) {
-                }
-                if ( selectedElectrons_.size() == 2 ) {
-                }
-                if ( ignoreCut(zvetoIndex_) ||
-                     zVeto ){
-                  passCut(ret, zvetoIndex_);
-	    
-  
-                  bool conversionVeto = true;
-                  if ( ignoreCut(conversionIndex_) ||
-                       conversionVeto ) {
-                    passCut(ret,conversionIndex_);
+	      bool zVeto = true;
+	      if ( selectedMuons_.size() == 2 ) {
+	      }
+	      if ( selectedElectrons_.size() == 2 ) {
+	      }
+	      if ( ignoreCut(zvetoIndex_) ||
+		   zVeto ){
+		passCut(ret, zvetoIndex_);
 		
-
-
-                    bool cosmicVeto = true;
-                    if ( ignoreCut(cosmicIndex_) ||
-                         cosmicVeto ) {
-                      passCut(ret,cosmicIndex_);
-
-                      if ( ignoreCut(jet1Index_) ||
-                           static_cast<int>(cleanedJets_.size()) >=  1 ){
-                        passCut(ret,jet1Index_);  
-                      } // end if >=1 tight jets
-
-                      if ( ignoreCut(jet2Index_) ||
-                           static_cast<int>(cleanedJets_.size()) >=  2 ){
-                        passCut(ret,jet2Index_);  
-                      } // end if >=2 tight jets
-
-                      if ( ignoreCut(jet3Index_) ||
-                           static_cast<int>(cleanedJets_.size()) >=  3 ){
-                        passCut(ret,jet3Index_);  
-                      } // end if >=3 tight jets
-
-                      if ( ignoreCut(jet4Index_) ||
-                           static_cast<int>(cleanedJets_.size()) >=  4 ){
-                        passCut(ret,jet4Index_);  
-                      } // end if >=4 tight jets
-
-                      if ( ignoreCut(jet5Index_) ||
-                           static_cast<int>(cleanedJets_.size()) >=  5 ){
-                        passCut(ret,jet5Index_);  
-                      } // end if >=5 tight jets
-
-
+		
+		bool conversionVeto = true;
+		if ( ignoreCut(conversionIndex_) ||
+		     conversionVeto ) {
+		  passCut(ret,conversionIndex_);
 		  
-                    } // end if cosmic veto
+		  
+		  
+		  bool cosmicVeto = true;
+		  if ( ignoreCut(cosmicIndex_) ||
+		       cosmicVeto ) {
+		    passCut(ret,cosmicIndex_);
+		    
+		    if ( ignoreCut(jet1Index_) ||
+			 static_cast<int>(cleanedJets_.size()) >=  1 ){
+		      passCut(ret,jet1Index_);  
+		    } // end if >=1 tight jets
+		    
+		    if ( ignoreCut(jet2Index_) ||
+			 static_cast<int>(cleanedJets_.size()) >=  2 ){
+		      passCut(ret,jet2Index_);  
+		    } // end if >=2 tight jets
+		    
+		    if ( ignoreCut(jet3Index_) ||
+			 static_cast<int>(cleanedJets_.size()) >=  3 ){
+		      passCut(ret,jet3Index_);  
+		    } // end if >=3 tight jets
+		    
+		    if ( ignoreCut(jet4Index_) ||
+			 static_cast<int>(cleanedJets_.size()) >=  4 ){
+		      passCut(ret,jet4Index_);  
+		    } // end if >=4 tight jets
+		    
+		    if ( ignoreCut(jet5Index_) ||
+			 static_cast<int>(cleanedJets_.size()) >=  5 ){
+		      passCut(ret,jet5Index_);  
+		    } // end if >=5 tight jets
+		    
+		    
+		    
+		  } // end if cosmic veto
+		  
+		} // end if conversion veto
 		
-                  } // end if conversion veto
-
-                } // end if z veto
-
-              } // end if met cut
-	
-            } // end if == 1 lepton
-
-          } // end if == 1 tight lepton with a muon veto separately
-
+	      } // end if z veto
+	      
+	    } // end if met cut
+	    
+	  } // end if == 1 lepton
+	  
         } // end if == 1 tight lepton
-
+	
       } // end if >= 1 lepton
 
     } // end if PV
