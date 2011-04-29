@@ -111,6 +111,7 @@ class WPlusJetsEventSelector : public EventSelector {
 
   bool muPlusJets_;
   bool ePlusJets_;
+  bool isHWW_;
 
   double muPtMin_  ;
   double muEtaMax_ ;
