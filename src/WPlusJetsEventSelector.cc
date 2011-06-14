@@ -202,7 +202,11 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 
     bool passPV = false;
 
-    passPV = pvSelector_( event );
+    // This way is all broken don't do it
+    // passPV = pvSelector_( event );
+
+    passPV = pvSelector_.passPVSelection(event);
+    
     if ( ignoreCut(pvIndex_) || passPV ) {
       passCut(ret, pvIndex_);
   
