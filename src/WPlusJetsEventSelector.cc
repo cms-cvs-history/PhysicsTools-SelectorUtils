@@ -4,6 +4,8 @@
 #include "DataFormats/Candidate/interface/ShallowCloneCandidate.h"
 
 #include <iostream>
+#include <string>                                                                                    
+#include "TRegexp.h" 
 
 using namespace std;
 
@@ -153,7 +155,6 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
   bool passTrig = false;
   if (!ignoreCut(triggerIndex_) ) {
 
-
     edm::Handle<pat::TriggerEvent> triggerEvent;
     event.getByLabel(trigTag_, triggerEvent);
 
@@ -161,17 +162,36 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 
     if ( trig->wasRun() && trig->wasAccept() ) {
 
-      pat::TriggerPath const * muPath = trig->path(muTrig_);
+                                                                                            
+      //match muon trigger names to our wild card expression                                      
+      TRegexp  muTrigRegexp(muTrig_);                                                             
+      bool matchMuTrigName = false;                                                                 
+      for(pat::TriggerPathCollection::const_iterator iPath = trig->paths()->begin(); iPath != trig->paths()->end(); ++iPath){ 
+	    TString thisTrigPath = iPath->name();                                                     
+	  matchMuTrigName =  thisTrigPath.Contains(muTrigRegexp);                                     
+	  if(matchMuTrigName == true){                                                                
+	       cout << "Triger Path : " << thisTrigPath << endl;                                  
+	    pat::TriggerPath const * muPath = trig->path(iPath->name());                            
+	    if ( muPlusJets_ && muPath != 0 && muPath->wasAccept() ) {                             
+              passTrig = true;                                                                    
+            }                                                                                     
+	  }                                                                                         
+    }// full Trigger path collection     
 
-      pat::TriggerPath const * elePath = trig->path(eleTrig_);
-
-      if ( muPlusJets_ && muPath != 0 && muPath->wasAccept() ) {
-        passTrig = true;    
-      }
-      
-      if ( ePlusJets_ && elePath != 0 && elePath->wasAccept() ) {
-        passTrig = true;
-      }
+     //match electron trigger names to our wild card expression 
+     TRegexp  eleTrigRegexp(eleTrig_);
+     bool matchElTrigName = false;
+     for(pat::TriggerPathCollection::const_iterator iPath = trig->paths()->begin(); iPath != trig->paths()->end(); ++iPath){
+	TString thisTrigPath = iPath->name();
+	matchElTrigName =  thisTrigPath.Contains(eleTrigRegexp);
+	if(matchElTrigName == true){
+	  cout << "Triger Path : " << thisTrigPath << endl;
+	  pat::TriggerPath const * elePath = trig->path(iPath->name());
+	  if ( ePlusJets_ && elePath != 0 && elePath->wasAccept() ) {
+	    passTrig = true;
+	  }
+	}
+     }//end loop over full trigger paths collection
     }
   }
   
