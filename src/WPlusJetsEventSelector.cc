@@ -170,7 +170,6 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	    TString thisTrigPath = iPath->name();                                                     
 	  matchMuTrigName =  thisTrigPath.Contains(muTrigRegexp);                                     
 	  if(matchMuTrigName == true){                                                                
-	       cout << "Triger Path : " << thisTrigPath << endl;                                  
 	    pat::TriggerPath const * muPath = trig->path(iPath->name());                            
 	    if ( muPlusJets_ && muPath != 0 && muPath->wasAccept() ) {                             
               passTrig = true;                                                                    
@@ -185,7 +184,6 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	TString thisTrigPath = iPath->name();
 	matchElTrigName =  thisTrigPath.Contains(eleTrigRegexp);
 	if(matchElTrigName == true){
-	  cout << "Triger Path : " << thisTrigPath << endl;
 	  pat::TriggerPath const * elePath = trig->path(iPath->name());
 	  if ( ePlusJets_ && elePath != 0 && elePath->wasAccept() ) {
 	    passTrig = true;
