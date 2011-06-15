@@ -533,8 +533,8 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     double trkIso  = muon.trackIso();
     double pt      = muon.pt() ;
 
-    // Use relative track Iso but may change to combined relIso
-    double relIso = trkIso / pt;
+    // Changed back to combined relIso
+    double relIso = (ecalIso + hcalIso + trkIso) / pt;
 
     double z_mu = muon.vertex().z();
 
