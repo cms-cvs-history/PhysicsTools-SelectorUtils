@@ -248,8 +248,8 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	  beamPoint = reco::TrackBase::Point ( beamSpot.x0(), beamSpot.y0(), beamSpot.z0() );
 	  double d0bs = ielectron->gsfTrack()->dxy(beamPoint);
 	  
-	  SimpleCutBasedElectronIDSelectionFunctor patSele95(SimpleCutBasedElectronIDSelectionFunctor::trkIso95);
-	  SimpleCutBasedElectronIDSelectionFunctor patSele80(SimpleCutBasedElectronIDSelectionFunctor::trkIso80);
+	  SimpleCutBasedElectronIDSelectionFunctor patSele95(SimpleCutBasedElectronIDSelectionFunctor::cIso95);
+	  SimpleCutBasedElectronIDSelectionFunctor patSele80(SimpleCutBasedElectronIDSelectionFunctor::cIso80);
 	  
 	  passIDLoose = patSele95(*ielectron);
 	  passID = patSele80(*ielectron);
