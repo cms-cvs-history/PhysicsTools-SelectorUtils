@@ -86,6 +86,7 @@ wplusjetsAnalysis = cms.PSet(
     muPlusJets     = cms.bool( True ),
     ePlusJets      = cms.bool( False ),
     isHWW          = cms.bool( False ),
+    isLoose        = cms.bool( False ),  
     muPtMin        = cms.double( 20.0 ),
     muEtaMax       = cms.double( 2.1 ),
     eleEtMin       = cms.double( 20.0 ),
