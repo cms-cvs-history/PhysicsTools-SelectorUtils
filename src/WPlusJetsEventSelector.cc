@@ -36,6 +36,7 @@ WPlusJetsEventSelector::WPlusJetsEventSelector( edm::ParameterSet const & params
   muPlusJets_      (params.getParameter<bool>("muPlusJets") ),
   ePlusJets_       (params.getParameter<bool>("ePlusJets") ),
   isHWW_           (params.getParameter<bool>("isHWW") ),
+  isLoose_           (params.getParameter<bool>("isLoose") ),
   muPtMin_         (params.getParameter<double>("muPtMin")), 
   muEtaMax_        (params.getParameter<double>("muEtaMax")), 
   eleEtMin_        (params.getParameter<double>("eleEtMin")), 
@@ -246,12 +247,20 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	  beamPoint = reco::TrackBase::Point ( beamSpot.x0(), beamSpot.y0(), beamSpot.z0() );
 	  double d0bs = ielectron->gsfTrack()->dxy(beamPoint);
 	  
-	  SimpleCutBasedElectronIDSelectionFunctor patSele95(SimpleCutBasedElectronIDSelectionFunctor::cIso95);
-	  SimpleCutBasedElectronIDSelectionFunctor patSele80(SimpleCutBasedElectronIDSelectionFunctor::cIso80);
+
+	  SimpleCutBasedElectronIDSelectionFunctor patSele95(SimpleCutBasedElectronIDSelectionFunctor::trkIso95);
+	  SimpleCutBasedElectronIDSelectionFunctor patSele80(SimpleCutBasedElectronIDSelectionFunctor::trkIso80);
+	  SimpleCutBasedElectronIDSelectionFunctor patSele95comb(SimpleCutBasedElectronIDSelectionFunctor::cIso95);
+	  SimpleCutBasedElectronIDSelectionFunctor patSele80comb(SimpleCutBasedElectronIDSelectionFunctor::cIso80);
 	  
-	  passIDLoose = patSele95(*ielectron);
-	  passID = patSele80(*ielectron);
-	  
+	  if(isLoose_){
+	    passIDLoose = patSele95(*ielectron);
+	    passID = patSele80(*ielectron);
+	  }
+	  else{
+	    passIDLoose = patSele95comb(*ielectron);
+	    passID = patSele80comb(*ielectron);
+	  }
 	  if ( ielectron->et() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
 	       (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) &&
 	       passID && fabs(d0bs) < 0.02) {
