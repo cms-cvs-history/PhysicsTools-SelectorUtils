@@ -65,6 +65,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 		parameters.getParameter<double>("ECalVeto")   ,
 		parameters.getParameter<double>("HCalVeto")   ,
 		parameters.getParameter<double>("RelIso"),
+		parameters.getParameter<double>("TrkIso"),
 		parameters.getParameter<double>("LepZ"), 
 		parameters.getParameter<int>("nPixelHits"),
 		parameters.getParameter<int>("nMatchedStations")
@@ -90,6 +91,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 				   double ecalveto = 4.0,
 				   double hcalveto = 6.0,
 				   double reliso = 0.05,
+				   double trkiso = 9999.0,
 				   double maxLepZ = 1.0,
 				   int minPixelHits = 1,
 				   int minNMatches = 1
@@ -109,6 +111,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 		   double ecalveto = 4.0,
 		   double hcalveto = 6.0,
 		   double reliso = 0.05,
+		   double trkiso = 9999.0,
 		   double maxLepZ = 1.0,
 		   int minPixelHits = 1,
 		   int minNMatches = 1 )
@@ -124,6 +127,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     push_back("ECalVeto",  ecalveto);
     push_back("HCalVeto",  hcalveto);
     push_back("RelIso",    reliso );
+    push_back("TrkIso",    trkiso );
     push_back("LepZ",      maxLepZ);
     push_back("nPixelHits",minPixelHits);
     push_back("nMatchedStations", minNMatches);
@@ -137,6 +141,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     set("ECalVeto");
     set("HCalVeto");
     set("RelIso");   
+    set("TrkIso");   
     set("LepZ");
     set("nPixelHits");
     set("nMatchedStations");  
@@ -150,6 +155,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     indexECalVeto_      = index_type(&bits_, "ECalVeto"     );
     indexHCalVeto_      = index_type(&bits_, "HCalVeto"     );
     indexRelIso_        = index_type(&bits_, "RelIso"       );
+    indexTrkIso_        = index_type(&bits_, "TrkIso"       );
     indexLepZ_          = index_type( &bits_, "LepZ");
     indexPixHits_       = index_type( &bits_, "nPixelHits");
     indexStations_      = index_type( &bits_, "nMatchedStations");
@@ -530,11 +536,12 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 	
     double hcalIso = muon.hcalIso();
     double ecalIso = muon.ecalIso();
-    double trkIso  = muon.trackIso();
+    double trackIso  = muon.trackIso();
     double pt      = muon.pt() ;
 
-    // Changed back to combined relIso
-    double relIso = (ecalIso + hcalIso + trkIso) / pt;
+    // Use relative track Iso but may change to combined relIso
+    double trkIso = trackIso / pt;
+    double relIso = (ecalIso + hcalIso + trackIso) / pt;
 
     double z_mu = muon.vertex().z();
 
@@ -551,6 +558,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     if ( hcalVeto      <  cut(indexHCalVeto_,double())|| ignoreCut(indexHCalVeto_)) passCut(ret, indexHCalVeto_);
     if ( ecalVeto      <  cut(indexECalVeto_,double())|| ignoreCut(indexECalVeto_)) passCut(ret, indexECalVeto_);
     if ( relIso        <  cut(indexRelIso_, double()) || ignoreCut(indexRelIso_)  ) passCut(ret, indexRelIso_ );
+    if ( trkIso        <  cut(indexTrkIso_, double()) || ignoreCut(indexTrkIso_)  ) passCut(ret, indexTrkIso_ );
     if ( fabs(z_mu-zvtx)<  cut(indexLepZ_, double()) || ignoreCut(indexLepZ_)  ) passCut(ret, indexLepZ_ );
     if ( nPixelHits    >  cut(indexPixHits_,int())    || ignoreCut(indexPixHits_))  passCut(ret, indexPixHits_);
     if ( nMatchedStations> cut(indexStations_,int())    || ignoreCut(indexStations_))  passCut(ret, indexStations_);
@@ -688,6 +696,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
   index_type indexNValMuHits_;    
   index_type indexECalVeto_;      
   index_type indexHCalVeto_;      
+  index_type indexTrkIso_;        
   index_type indexRelIso_;        
   index_type indexLepZ_;
   index_type indexPixHits_;
