@@ -170,6 +170,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
       set("SD0", false);
       set("ECalVeto",false);
       set("HCalVeto",false);
+      set("TrkIso",false);   
     } else if ( version == SPRING10) {
       set("ED0", false );
       set("SD0", false);
@@ -178,6 +179,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
       set("LepZ", false);
       set("nPixelHits", false);
       set("nMatchedStations", false);  
+      set("TrkIso",false);   
     } else if ( version_ == FIRSTDATA ) {
       set("D0", false );
       set("ED0", false );
@@ -185,13 +187,14 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
       set("LepZ", false);
       set("nPixelHits", false);
       set("nMatchedStations", false);  
+      set("TrkIso",false);   
     } else if (version == SUMMER08 ) {
       set("SD0", false);
       set("NValMuHits",false);      
       set("LepZ", false);
       set("nPixelHits", false);
       set("nMatchedStations", false);  
-
+      set("TrkIso",false);   
     }
 
   }
@@ -447,6 +450,8 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     int nPixelHits = muon.innerTrack()->hitPattern().pixelLayersWithMeasurement();
 
     int nMatchedStations = muon.numberOfMatches();
+
+    std::cout << "reliso " << relIso << " cut " << cut(indexRelIso_, double()) << std::endl;
 
     if ( norm_chi2     <  cut(indexChi2_,   double()) || ignoreCut(indexChi2_)    ) passCut(ret, indexChi2_   );
     if ( fabs(corr_d0) <  cut(indexD0_,     double()) || ignoreCut(indexD0_)      ) passCut(ret, indexD0_     );
