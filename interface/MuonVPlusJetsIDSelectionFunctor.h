@@ -451,8 +451,6 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 
     int nMatchedStations = muon.numberOfMatches();
 
-    std::cout << "reliso " << relIso << " cut " << cut(indexRelIso_, double()) << std::endl;
-
     if ( norm_chi2     <  cut(indexChi2_,   double()) || ignoreCut(indexChi2_)    ) passCut(ret, indexChi2_   );
     if ( fabs(corr_d0) <  cut(indexD0_,     double()) || ignoreCut(indexD0_)      ) passCut(ret, indexD0_     );
     if ( fabs(corr_ed0)<  cut(indexED0_,    double()) || ignoreCut(indexED0_)     ) passCut(ret, indexED0_    );
