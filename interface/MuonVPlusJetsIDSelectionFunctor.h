@@ -479,6 +479,17 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     double corr_ed0 = muon.edB();
     double corr_sd0 = ( corr_ed0 > 0.000000001 ) ? corr_d0 / corr_ed0 : 999.0;
 
+    // Get the PV for the muon z requirement
+    edm::Handle<std::vector<reco::Vertex> > pvtxHandle_;
+    event.getByLabel( pvSrc_, pvtxHandle_ );
+
+    double zvtx = -999;
+    if ( pvtxHandle_->size() > 0 ) {
+      zvtx = pvtxHandle_->at(0).z();
+    } else {
+      throw cms::Exception("InvalidInput") << " There needs to be at least one primary vertex in the event." << std::endl;
+    }
+
     //If required, recalculate the impact parameter using the beam spot
     if (recalcDBFromBSp_) {
 
@@ -509,26 +520,6 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 	corr_d0 =  999.;
 	corr_ed0 = 999.;
       }
-    }
-
-    // Get the PV for the muon z requirement
-    edm::Handle<reco::VertexCollection> vertexes;
-    event.getByLabel(pvSrc_, vertexes);
-
-    if ( vertexes->size() < 1 ) return false;
-
-    reco::Vertex pv;
-    bool PVfound = (vertexes -> size() != 0);
-    double zvtx = -999;
-
-    // Sort PV collection 
-    if(PVfound){
-      PrimaryVertexSorter PVSorter;
-      std::vector<reco::Vertex> sortedVertices = PVSorter.sortedList( *(vertexes.product()) );
-      pv = sortedVertices.front();
-      zvtx = pv.z();
-    } else {
-      throw cms::Exception("InvalidInput") << " There needs to be at least one primary vertex in the event." << std::endl;
     }
 
     int nhits = static_cast<int>( muon.numberOfValidHits() );
