@@ -249,17 +249,17 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	  
 
 	  SimpleCutBasedElectronIDSelectionFunctor patSele95(SimpleCutBasedElectronIDSelectionFunctor::trkIso95);
-	  SimpleCutBasedElectronIDSelectionFunctor patSele80(SimpleCutBasedElectronIDSelectionFunctor::trkIso80);
+	  SimpleCutBasedElectronIDSelectionFunctor patSele70(SimpleCutBasedElectronIDSelectionFunctor::trkIso70);
 	  SimpleCutBasedElectronIDSelectionFunctor patSele95comb(SimpleCutBasedElectronIDSelectionFunctor::cIso95);
-	  SimpleCutBasedElectronIDSelectionFunctor patSele80comb(SimpleCutBasedElectronIDSelectionFunctor::cIso80);
+	  SimpleCutBasedElectronIDSelectionFunctor patSele70comb(SimpleCutBasedElectronIDSelectionFunctor::cIso70);
 	  
 	  if(isLoose_){
 	    passIDLoose = patSele95(*ielectron);
-	    passID = patSele80(*ielectron);
+	    passID = patSele70(*ielectron);
 	  }
 	  else{
 	    passIDLoose = patSele95comb(*ielectron);
-	    passID = patSele80comb(*ielectron);
+	    passID = patSele70comb(*ielectron);
 	  }
 	  if ( ielectron->et() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
 	       (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) &&
