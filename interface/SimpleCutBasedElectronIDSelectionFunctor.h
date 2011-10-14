@@ -63,7 +63,7 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
  public: // interface  
   
   enum Version_t { relIso95=0, trkIso95, cIso95,  relIso90, cIso90, relIso85, cIso85, 
-		   relIso80, trkIso80, cIso80,  relIso70, cIso70, relIso60, cIso60, NONE };
+		   relIso80, trkIso80, cIso80,  relIso70, trkIso70, cIso70, relIso60, cIso60, NONE };
   
   SimpleCutBasedElectronIDSelectionFunctor() {}
   
@@ -377,6 +377,28 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
       set("trackIso_EE", 2.5e-02);
       set("ecalIso_EE",  2.5e-02);
       set("hcalIso_EE",  2.0e-02);
+      set("sihih_EE",    3.0e-02);
+      set("dphi_EE",     2.0e-02);
+      set("deta_EE",     5.0e-03);
+      set("hoe_EE",      2.5e-02);
+      set("cIso_EE",     100000.);
+      
+      set("conversionRejection",            1);
+      set("maxNumberOfExpectedMissingHits", 0);
+    }
+    else if (version_ == trkIso70) {
+      set("trackIso_EB", 0.1);
+      set("ecalIso_EB",  100000.);
+      set("hcalIso_EB",  100000.);
+      set("sihih_EB",    1.0e-02);
+      set("dphi_EB",     3.0e-02);
+      set("deta_EB",     4.0e-03);
+      set("hoe_EB",      2.5e-02);
+      set("cIso_EB",     100000.);
+
+      set("trackIso_EE", 0.1);
+      set("ecalIso_EE",  100000.);
+      set("hcalIso_EE",  100000.);
       set("sihih_EE",    3.0e-02);
       set("dphi_EE",     2.0e-02);
       set("deta_EE",     5.0e-03);
