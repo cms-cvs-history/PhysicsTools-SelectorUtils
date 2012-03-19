@@ -191,7 +191,7 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
       set("dphi_EB",     8.0e-01);
       set("deta_EB",     7.0e-03);
       set("hoe_EB",      1.5e-01);
-      set("cIso_EB",     1.5e-01);
+      set("cIso_EB",     2.0e-01);
       			       					      
       set("trackIso_EE", 100000.);
       set("ecalIso_EE",  100000.);
@@ -200,7 +200,7 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
       set("dphi_EE",     7.0e-01);
       set("deta_EE",     1.0e-02);
       set("hoe_EE",      7.0e-02);
-      set("cIso_EE",     1.0e-01);
+      set("cIso_EE",     2.0e-01);
       
       set("conversionRejection",            0);
       set("maxNumberOfExpectedMissingHits", 1);
@@ -416,7 +416,7 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
       set("dphi_EB",     3.0e-02);
       set("deta_EB",     4.0e-03);
       set("hoe_EB",      2.5e-02);
-      set("cIso_EB",     4.0e-02);
+      set("cIso_EB",     5.0e-02);
 
       set("trackIso_EE", 100000.);
       set("ecalIso_EE",  100000.);
@@ -425,7 +425,7 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
       set("dphi_EE",     2.0e-02);
       set("deta_EE",     5.0e-03);
       set("hoe_EE",      2.5e-02);
-      set("cIso_EE",     3.0e-02);
+      set("cIso_EE",     5.0e-02);
       
       set("conversionRejection",            1);
       set("maxNumberOfExpectedMissingHits", 0);
@@ -535,6 +535,11 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
     // for the time being only Spring10 variable definition
     return spring10Variables(electron, ret);
   }
+  bool operator()( const pat::Electron & electron, edm::EventBase const & event, pat::strbitset & ret ) 
+  {
+    // for the time being only Spring10 variable definition
+    return spring12Variables(electron, event, ret);
+  }
   using Selector<pat::Electron>::operator();
   // function with the Spring10 variable definitions
   bool spring10Variables( const pat::Electron & electron, pat::strbitset & ret) 
@@ -550,14 +555,97 @@ class SimpleCutBasedElectronIDSelectionFunctor : public Selector<pat::Electron> 
     Double_t Deta    = electron.deltaEtaSuperClusterTrackAtVtx();
     Double_t HoE     = electron.hadronicOverEm();
     Double_t cIso    = 0;
+
     if (electron.isEB()) { cIso = 
 	( electron.dr03TkSumPt() + std::max(0.,electron.dr03EcalRecHitSumEt() -1.) 
-	  + electron.dr03HcalTowerSumEt() ) / eleET;
+	  + electron.dr03HcalTowerSumEt()) / eleET;
     }
     else {
       cIso = ( electron.dr03TkSumPt()+electron.dr03EcalRecHitSumEt()+
-	       electron.dr03HcalTowerSumEt()  ) / eleET;
+	       electron.dr03HcalTowerSumEt()) / eleET;
     }
+    Int_t innerHits = electron.gsfTrack()->trackerExpectedHitsInner().numberOfHits();
+    // in 39 conversion rejection variables are accessible from Gsf electron
+    Double_t dist = electron.convDist(); // default value is -9999 if conversion partner not found
+    Double_t dcot = electron.convDcot(); // default value is -9999 if conversion partner not found
+    Bool_t isConv = fabs(dist) < 0.02 && fabs(dcot) < 0.02;
+    // now apply the cuts
+    if (electron.isEB()) { // BARREL case
+      // check the EB cuts
+      if ( trackIso   <  cut("trackIso_EB", double()) || ignoreCut("trackIso_EB")) passCut(ret, "trackIso_EB");
+      if ( ecalIso    <  cut("ecalIso_EB",  double()) || ignoreCut("ecalIso_EB") ) passCut(ret, "ecalIso_EB");
+      if ( hcalIso    <  cut("hcalIso_EB",  double()) || ignoreCut("hcalIso_EB") ) passCut(ret, "hcalIso_EB");
+      if ( sihih      <  cut("sihih_EB",    double()) || ignoreCut("sihih_EB")   ) passCut(ret, "sihih_EB");
+      if ( fabs(Dphi) <  cut("dphi_EB",     double()) || ignoreCut("dphi_EB")    ) passCut(ret, "dphi_EB");
+      if ( fabs(Deta) <  cut("deta_EB",     double()) || ignoreCut("deta_EB")    ) passCut(ret, "deta_EB");
+      if ( HoE        <  cut("hoe_EB",      double()) || ignoreCut("hoe_EB")     ) passCut(ret, "hoe_EB");
+      if ( cIso       <  cut("cIso_EB",     double()) || ignoreCut("cIso_EB")    ) passCut(ret, "cIso_EB");
+      // pass all the EE cuts
+      passCut(ret, "trackIso_EE");	
+      passCut(ret, "ecalIso_EE");	
+      passCut(ret, "hcalIso_EE");	
+      passCut(ret, "sihih_EE");	
+      passCut(ret, "dphi_EE");	
+      passCut(ret, "deta_EE");	
+      passCut(ret, "hoe_EE");	
+      passCut(ret, "cIso_EE");     
+    } else {  // ENDCAPS case
+      // check the EE cuts
+      if ( trackIso   <  cut("trackIso_EE", double()) || ignoreCut("trackIso_EE")) passCut(ret, "trackIso_EE");
+      if ( ecalIso    <  cut("ecalIso_EE",  double()) || ignoreCut("ecalIso_EE") ) passCut(ret, "ecalIso_EE");
+      if ( hcalIso    <  cut("hcalIso_EE",  double()) || ignoreCut("hcalIso_EE") ) passCut(ret, "hcalIso_EE");
+      if ( sihih      <  cut("sihih_EE",    double()) || ignoreCut("sihih_EE")   ) passCut(ret, "sihih_EE");
+      if ( fabs(Dphi) <  cut("dphi_EE",     double()) || ignoreCut("dphi_EE")    ) passCut(ret, "dphi_EE");
+      if ( fabs(Deta) <  cut("deta_EE",     double()) || ignoreCut("deta_EE")    ) passCut(ret, "deta_EE");
+      if ( HoE        <  cut("hoe_EE",      double()) || ignoreCut("hoe_EE")     ) passCut(ret, "hoe_EE");
+      if ( cIso       <  cut("cIso_EE",     double()) || ignoreCut("cIso_EE")    ) passCut(ret, "cIso_EE");     
+      // pass all the EB cuts
+      passCut(ret, "trackIso_EB");	
+      passCut(ret, "ecalIso_EB");	
+      passCut(ret, "hcalIso_EB");	
+      passCut(ret, "sihih_EB");	
+      passCut(ret, "dphi_EB");	
+      passCut(ret, "deta_EB");	
+      passCut(ret, "hoe_EB");	
+      passCut(ret, "cIso_EB");     
+    }
+
+    // conversion rejection common for EB and EE
+    if ( innerHits  <=  cut("maxNumberOfExpectedMissingHits", int())) 
+      passCut(ret, "maxNumberOfExpectedMissingHits");    
+    if ( 0==cut("conversionRejection", int()) || isConv==false)
+      passCut(ret, "conversionRejection");
+    setIgnored(ret);   
+    return (bool)ret;
+  }
+
+  bool spring12Variables( const pat::Electron & electron, edm::EventBase const & event, pat::strbitset & ret) 
+  {
+    ret.set(false);
+    //
+    Double_t eleET = electron.p4().Pt();
+    Double_t trackIso = electron.dr03TkSumPt()/eleET;
+    Double_t ecalIso = electron.dr03EcalRecHitSumEt()/eleET;
+    Double_t hcalIso = electron.dr03HcalTowerSumEt()/eleET;
+    Double_t sihih   = electron.sigmaIetaIeta();
+    Double_t Dphi    = electron.deltaPhiSuperClusterTrackAtVtx();
+    Double_t Deta    = electron.deltaEtaSuperClusterTrackAtVtx();
+    Double_t HoE     = electron.hadronicOverEm();
+    Double_t cIso    = 0;
+
+    edm::Handle< double > rhoHandle;
+    event.getByLabel (edm::InputTag("kt6PFJetsChsForIsolationPFlow","rho"), rhoHandle);
+    double rho_event = *rhoHandle;
+
+    if (electron.isEB()) { cIso = 
+	( electron.dr03TkSumPt() + std::max(0.,electron.dr03EcalRecHitSumEt() -1.) 
+	  + electron.dr03HcalTowerSumEt()  - rho_event*3.1415*0.3*0.3) / eleET;
+    }
+    else {
+      cIso = ( electron.dr03TkSumPt()+electron.dr03EcalRecHitSumEt()+
+	       electron.dr03HcalTowerSumEt()  - rho_event*3.1415*0.3*0.3 ) / eleET;
+    }
+
     Int_t innerHits = electron.gsfTrack()->trackerExpectedHitsInner().numberOfHits();
     // in 39 conversion rejection variables are accessible from Gsf electron
     Double_t dist = electron.convDist(); // default value is -9999 if conversion partner not found
