@@ -254,12 +254,12 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	  SimpleCutBasedElectronIDSelectionFunctor patSele70comb(SimpleCutBasedElectronIDSelectionFunctor::cIso70);
 	  
 	  if(isLoose_){
-	    passIDLoose = patSele95(*ielectron);
-	    passID = patSele70(*ielectron);
+	    passIDLoose = patSele95(*ielectron,event);
+	    passID = patSele70(*ielectron,event);
 	  }
 	  else{
-	    passIDLoose = patSele95comb(*ielectron);
-	    passID = patSele70comb(*ielectron);
+	    passIDLoose = patSele95comb(*ielectron,event);
+	    passID = patSele70comb(*ielectron,event);
 	  }
 	  if ( ielectron->et() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
 	       (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) &&
@@ -296,6 +296,8 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
             imuon != muonEnd; ++imuon ) {
         nMuons++;
         if ( !imuon->isGlobalMuon() ) continue;
+
+
 
         // Tight cuts
         bool passTight = muonIdTight_(*imuon,event) && imuon->isTrackerMuon() ;
