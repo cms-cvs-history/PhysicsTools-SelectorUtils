@@ -533,9 +533,14 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     double trackIso  = muon.trackIso();
     double pt      = muon.pt() ;
 
+    edm::Handle< double > rhoHandle;
+    event.getByLabel (edm::InputTag("kt6PFJetsChsForIsolationPFlow","rho"), rhoHandle);
+    double rho_event = *rhoHandle;
+
     // Use relative track Iso but may change to combined relIso
     double trkIso = trackIso / pt;
-    double relIso = (ecalIso + hcalIso + trackIso) / pt;
+    //double relIso = (ecalIso + hcalIso + trackIso) / pt;
+    double relIso = (ecalIso + hcalIso + trackIso - rho_event*3.1415*0.3*0.3) / pt;
 
     double z_mu = muon.vertex().z();
 
