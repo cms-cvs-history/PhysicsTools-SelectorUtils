@@ -7,18 +7,22 @@
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "RecoVertex/PrimaryVertexProducer/interface/PrimaryVertexSorter.h"
 
+#include "Muon/MuonAnalysisTools/interface/MuonEffectiveArea.h"
+#include "DataFormats/MuonReco/interface/MuonPFIsolation.h"
+
 #include "PhysicsTools/SelectorUtils/interface/Selector.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
-#include <iostream>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <memory>
 class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 
  public: // interface
 
   bool verbose_;
   
-  enum Version_t { SUMMER08, FIRSTDATA, SPRING10, FALL10, N_VERSIONS, KITQCD, SPRING11 };
+  enum Version_t { SUMMER08, FIRSTDATA, SPRING10, FALL10, N_VERSIONS, KITQCD, SPRING11, SPRING12 };
 
   MuonVPlusJetsIDSelectionFunctor() {}
 
@@ -51,6 +55,11 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
       version = KITQCD;
       if (verbose_) std::cout << "\nMUON SELECTION - you are using KITQCD Selection" << std::endl;
     }
+    else if (versionStr == "SPRING12") {
+      version = SPRING12;
+      if (verbose_) std::cout << "\nMUON SELECTION - you are using SPRING12 Selection" << std::endl;
+    }
+
     else {
       throw cms::Exception("InvalidInput") << "Expect version to be one of SUMMER08, FIRSTDATA, SPRING10, FALL10, SPRING11" << std::endl;
     }
@@ -97,7 +106,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 				   int minNMatches = 1
 				   ) : recalcDBFromBSp_(false) {
     initialize( version, chi2, d0, ed0, sd0, nhits, nValidMuonHits, ecalveto, hcalveto, reliso,
-		maxLepZ, minPixelHits, minNMatches );
+		maxLepZ, minPixelHits, minNMatches);
     
     retInternal_ = getBitTemplate();
   }
@@ -114,7 +123,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
 		   double trkiso = 9999.0,
 		   double maxLepZ = 1.0,
 		   int minPixelHits = 1,
-		   int minNMatches = 1 )
+		   int minNMatches = 1)
   {
     version_ = version; 
     
@@ -159,8 +168,15 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     indexLepZ_          = index_type( &bits_, "LepZ");
     indexPixHits_       = index_type( &bits_, "nPixelHits");
     indexStations_      = index_type( &bits_, "nMatchedStations");
-    
-    if ( version == SPRING11) {
+
+    if (version == SPRING12){
+      set("ED0", false );
+      set("SD0", false);
+      set("ECalVeto",false);
+      set("HCalVeto",false);
+      set("RelIso",false);
+      set("TrkIso",false);
+    } else if ( version == SPRING11) {
       set("ED0", false );
       set("SD0", false);
       set("ECalVeto",false);
@@ -204,6 +220,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
   { 
 
     if (version_ == SPRING11 ) return spring11Cuts(muon, event, ret);
+    if (version_ == SPRING12 ) return spring12Cuts(muon, event, ret);
     if (version_ == FALL10 ) return fall10Cuts(muon, event, ret);
     else if (version_ == SPRING10 ) return spring10Cuts(muon, event, ret);
     else if ( version_ == SUMMER08 ) return summer08Cuts( muon, ret );
@@ -468,6 +485,115 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     
     return (bool)ret;
   }
+
+  // cuts based on HWW->lvjj synchronization exercise with TAMU 2012
+  bool spring12Cuts( const pat::Muon & muon, edm::EventBase const & event, pat::strbitset & ret)
+  {
+
+    ret.set(false);
+
+    //    double norm_chi2 = muon.normChi2();
+    double norm_chi2 = muon.globalTrack()->normalizedChi2();
+    double corr_d0 = muon.dB();
+    double corr_ed0 = muon.edB();
+    double corr_sd0 = ( corr_ed0 > 0.000000001 ) ? corr_d0 / corr_ed0 : 999.0;
+
+    // Get the PV for the muon z requirement
+    edm::Handle<std::vector<reco::Vertex> > pvtxHandle_;
+    event.getByLabel( pvSrc_, pvtxHandle_ );
+    double zvtx = -999;
+    if ( pvtxHandle_->size() > 0 ) {
+      zvtx = pvtxHandle_->at(0).z();
+    } else {
+      throw cms::Exception("InvalidInput") << " There needs to be at least one primary vertex in the event." << std::endl;
+    }
+
+    //If required, recalculate the impact parameter using the beam spot
+    if (recalcDBFromBSp_) {
+      //Get the beam spot
+      reco::TrackBase::Point beamPoint(0,0,0);
+      reco::BeamSpot beamSpot;
+      edm::Handle<reco::BeamSpot> beamSpotHandle;
+      event.getByLabel(beamLineSrc_, beamSpotHandle);
+
+      if( beamSpotHandle.isValid() ){
+        beamSpot = *beamSpotHandle;
+      } else{
+	edm::LogError("DataNotAvailable")
+          << "No beam spot available from EventSetup, not adding high level selection \n";
+      }
+      beamPoint = reco::TrackBase::Point ( beamSpot.x0(), beamSpot.y0(), beamSpot.z0() );
+
+      //Use the beamspot to correct the impact parameter and uncertainty
+      reco::TrackRef innerTrack = muon.innerTrack();
+      if ( innerTrack.isNonnull() && innerTrack.isAvailable() ) {
+        corr_d0 = -1.0 * innerTrack->dxy( beamPoint );
+        corr_ed0 = sqrt( innerTrack->d0Error() * innerTrack->d0Error()
+                         + 0.5* beamSpot.BeamWidthX()*beamSpot.BeamWidthX()
+                         + 0.5* beamSpot.BeamWidthY()*beamSpot.BeamWidthY() );
+        corr_sd0 = ( corr_ed0 > 0.000000001 ) ? corr_d0 / corr_ed0 : 999.0;
+
+      } else {
+        corr_d0 =  999.;
+        corr_ed0 = 999.;
+      }
+    }
+
+    //int nhits = static_cast<int>( muon.innerTrack()->numberOfValidHits() );
+    int nhits = static_cast<int>( muon.globalTrack()->hitPattern().trackerLayersWithMeasurement() );
+    int nValidMuonHits = static_cast<int> (muon.globalTrack()->hitPattern().numberOfValidMuonHits());
+
+    double ecalVeto = muon.isolationR03().emVetoEt;
+    double hcalVeto = muon.isolationR03().hadVetoEt;
+
+    double hcalIso = muon.hcalIso();
+    double ecalIso = muon.ecalIso();
+    double trackIso  = muon.trackIso();
+    double pt      = muon.pt() ;
+
+    edm::Handle< double > rhoHandle;
+    event.getByLabel (edm::InputTag("kt6PFJetsPFlow","rho"), rhoHandle);
+    double rho_event = *rhoHandle;
+
+    /*
+    //Muon PF Isolation
+
+    Double_t rhoPrime = std::max(rho_event,0.0);
+    Double_t AEff = MuonEffectiveArea::GetMuonEffectiveArea(MuonEffectiveArea::kMuGammaAndNeutralHadronIso04, muon.eta(), MuonEffectiveArea::kMuEAData2011);
+    Double_t pfisolation = (muon.pfIsolationR04().sumChargedHadronPt + std::max(0.0,(muon.pfIsolationR04().sumNeutralHadronEt + muon.pfIsolationR04().sumPhotonEt - rhoPrime*AEff))) / muon.pt();
+    */
+
+    // Use relative track Iso but may change to combined relIso
+    double trkIso = trackIso / pt;
+    //double relIso = (ecalIso + hcalIso + trackIso) / pt;
+    double relIso = (ecalIso + hcalIso + trackIso - rho_event*TMath::Pi()*0.3*0.3) / pt;
+
+    //double z_mu = muon.vertex().z();
+    double z_mu = muon.innerTrack()->dz(pvtxHandle_->at(0).position());
+
+    int nPixelHits = muon.innerTrack()->hitPattern().numberOfValidPixelHits();
+    int nMatchedStations = muon.numberOfMatchedStations();
+
+    if ( norm_chi2     <  cut(indexChi2_,   double()) || ignoreCut(indexChi2_)    ) passCut(ret, indexChi2_   );
+    if ( fabs(corr_d0) <  cut(indexD0_,     double()) || ignoreCut(indexD0_)      ) passCut(ret, indexD0_     );
+    if ( fabs(corr_ed0)<  cut(indexED0_,    double()) || ignoreCut(indexED0_)     ) passCut(ret, indexED0_    );
+    if ( fabs(corr_sd0)<  cut(indexSD0_,    double()) || ignoreCut(indexSD0_)     ) passCut(ret, indexSD0_    );
+    if ( nhits         >= cut(indexNHits_,  int()   ) || ignoreCut(indexNHits_)   ) passCut(ret, indexNHits_  );
+    if ( nValidMuonHits> cut(indexNValMuHits_,int()) || ignoreCut(indexNValMuHits_)) passCut(ret, indexNValMuHits_  );
+    if ( hcalVeto      <  cut(indexHCalVeto_,double())|| ignoreCut(indexHCalVeto_)) passCut(ret, indexHCalVeto_);
+    if ( ecalVeto      <  cut(indexECalVeto_,double())|| ignoreCut(indexECalVeto_)) passCut(ret, indexECalVeto_);
+    if ( relIso        <  cut(indexRelIso_, double()) || ignoreCut(indexRelIso_)  ) passCut(ret, indexRelIso_ );
+    if ( trkIso        <  cut(indexTrkIso_, double()) || ignoreCut(indexTrkIso_)  ) passCut(ret, indexTrkIso_ );
+    //if ( fabs(z_mu-zvtx)<  cut(indexLepZ_, double()) || ignoreCut(indexLepZ_)  ) passCut(ret, indexLepZ_ );
+    if ( fabs(z_mu)<  cut(indexLepZ_, double()) || ignoreCut(indexLepZ_)  ) passCut(ret, indexLepZ_ );
+    if ( nPixelHits    >  cut(indexPixHits_,int())    || ignoreCut(indexPixHits_))  passCut(ret, indexPixHits_);
+    if ( nMatchedStations> cut(indexStations_,int())    || ignoreCut(indexStations_))  passCut(ret, indexStations_);
+
+    setIgnored(ret);
+
+    return (bool)ret;
+  }
+
   // cuts based on HWW->lvjj synchronization exercise
   bool spring11Cuts( const pat::Muon & muon, edm::EventBase const & event, pat::strbitset & ret)
   {
@@ -534,7 +660,7 @@ class MuonVPlusJetsIDSelectionFunctor : public Selector<pat::Muon> {
     double pt      = muon.pt() ;
 
     edm::Handle< double > rhoHandle;
-    event.getByLabel (edm::InputTag("kt6PFJetsChsForIsolationPFlow","rho"), rhoHandle);
+    event.getByLabel (edm::InputTag("kt6PFJetsPFlow","rho"), rhoHandle);
     double rho_event = *rhoHandle;
 
     // Use relative track Iso but may change to combined relIso
