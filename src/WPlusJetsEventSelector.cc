@@ -1,7 +1,12 @@
- 
+
 #include "PhysicsTools/SelectorUtils/interface/WPlusJetsEventSelector.h"
 #include "PhysicsTools/SelectorUtils/interface/SimpleCutBasedElectronIDSelectionFunctor.h"
 #include "DataFormats/Candidate/interface/ShallowCloneCandidate.h"
+#include "RecoEgamma/EgammaTools/interface/ConversionTools.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+#include "Muon/MuonAnalysisTools/interface/MuonEffectiveArea.h"
+#include "EGamma/EGammaAnalysisTools/interface/ElectronEffectiveArea.h"
 
 #include <iostream>
 #include <string>                                                                                    
@@ -149,21 +154,18 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
   looseElectrons_.clear();
   selectedMETs_.clear();
 
-
   passCut( ret, inclusiveIndex_);
-
 
   bool passTrig = false;
   if (!ignoreCut(triggerIndex_) ) {
-
+    
     edm::Handle<pat::TriggerEvent> triggerEvent;
     event.getByLabel(trigTag_, triggerEvent);
-
+    
     pat::TriggerEvent const * trig = &*triggerEvent;
-
+    
     if ( trig->wasRun() && trig->wasAccept() ) {
-
-                                                                                            
+                                                                                        
       //match muon trigger names to our wild card expression                                      
       TRegexp  muTrigRegexp(muTrig_);                                                             
       bool matchMuTrigName = false;                                                                 
@@ -176,12 +178,12 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
               passTrig = true;                                                                    
             }                                                                                     
 	  }                                                                                         
-    }// full Trigger path collection     
+      }// full Trigger path collection     
 
-     //match electron trigger names to our wild card expression 
-     TRegexp  eleTrigRegexp(eleTrig_);
-     bool matchElTrigName = false;
-     for(pat::TriggerPathCollection::const_iterator iPath = trig->paths()->begin(); iPath != trig->paths()->end(); ++iPath){
+      //match electron trigger names to our wild card expression 
+      TRegexp  eleTrigRegexp(eleTrig_);
+      bool matchElTrigName = false;
+      for(pat::TriggerPathCollection::const_iterator iPath = trig->paths()->begin(); iPath != trig->paths()->end(); ++iPath){
 	TString thisTrigPath = iPath->name();
 	matchElTrigName =  thisTrigPath.Contains(eleTrigRegexp);
 	if(matchElTrigName == true){
@@ -190,164 +192,152 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 	    passTrig = true;
 	  }
 	}
-     }//end loop over full trigger paths collection
+      }//end loop over full trigger paths collection
     }
   }
   
   if ( ignoreCut(triggerIndex_) || 
        passTrig ) {
     passCut(ret, triggerIndex_);
-
-
-    bool passPV = false;
-
-    // This way is all broken don't do it
-    // passPV = pvSelector_( event );
-
-    passPV = pvSelector_.passPVSelection(event);
     
+    
+    bool passPV = false;
+    
+    passPV = pvSelector_.passPVSelection(event);
+
     if ( ignoreCut(pvIndex_) || passPV ) {
       passCut(ret, pvIndex_);
-  
+      
       edm::Handle< vector< pat::Electron > > electronHandle;
       event.getByLabel (electronTag_, electronHandle);
-  
+      
       edm::Handle< vector< pat::Muon > > muonHandle;
       event.getByLabel (muonTag_, muonHandle);
-
+      
       edm::Handle< vector< pat::Jet > > jetHandle;
 
       edm::Handle< edm::OwnVector<reco::Candidate> > jetClonesHandle ;
-
+      
       edm::Handle< vector< pat::MET > > metHandle;
       event.getByLabel (metTag_, metHandle);
-
+      
+      edm::Handle<reco::VertexCollection> thePrimaryVertexColl;
+      event.getByLabel(edm::InputTag("offlinePrimaryVertices"),thePrimaryVertexColl);
+      
+      reco::Vertex pv;
+      if (thePrimaryVertexColl->size() != 0) pv = *thePrimaryVertexColl->begin();
+     
       int nElectrons = 0;
       for ( std::vector<pat::Electron>::const_iterator electronBegin = electronHandle->begin(),
-              electronEnd = electronHandle->end(), ielectron = electronBegin;
-            ielectron != electronEnd; ++ielectron ) {
-        ++nElectrons;
-        // Tight cuts
-
-	if(isHWW_){
-	  bool passIDLoose = false;
-	  bool passID = false;
+	      electronEnd = electronHandle->end(), ielectron = electronBegin;
+	    ielectron != electronEnd; ++ielectron ) {
+	++nElectrons;
+	
+	bool passMVAIDLoose = false;
+	bool passMVAID = false;
+	
+	// Calculate 
+	reco::TrackBase::Point beamPoint(0,0,0);
+	reco::BeamSpot beamSpot;
+	edm::Handle<reco::BeamSpot> beamSpotHandle;
+	event.getByLabel(edm::InputTag("offlineBeamSpot"), beamSpotHandle);
+	if( beamSpotHandle.isValid() ){
+	  beamSpot = *beamSpotHandle;
+	} else{
+	  edm::LogError("DataNotAvailable")
+	    << "No beam spot available from EventSetup, not adding high level selection \n";
+	}
+	beamPoint = reco::TrackBase::Point ( beamSpot.x0(), beamSpot.y0(), beamSpot.z0() );
+	double d0bs = ielectron->gsfTrack()->dxy(beamPoint);
+	double dZbs = ielectron->gsfTrack()->dz(beamPoint);
+	//calculate from primary vertex
+	double d0PV = 999., dZPV = 999.;
+	edm::Handle<reco::VertexCollection> thePrimaryVertexColl;
+	event.getByLabel(edm::InputTag("offlinePrimaryVertices"),thePrimaryVertexColl);
+	
+	if (thePrimaryVertexColl->size() != 0) {
+	  d0PV = ielectron->gsfTrack()->dxy(pv.position()); 
+	  dZPV = ielectron->gsfTrack()->dz(pv.position());
+	}
+	
+	edm::Handle< double > rhoHandle;
+	event.getByLabel(edm::InputTag("kt6PFJetsPFlow","rho"), rhoHandle);
+	double rho_event = *rhoHandle;
+	
+	Double_t rhoPrime = std::max(rho_event,0.0);
+	Double_t AEff = ElectronEffectiveArea::GetElectronEffectiveArea(ElectronEffectiveArea::kEleGammaAndNeutralHadronIso03, ielectron->superCluster()->eta(), ElectronEffectiveArea::kEleEAData2011);
 	  
-	  // Calculate 
-	  reco::TrackBase::Point beamPoint(0,0,0);
-	  reco::BeamSpot beamSpot;
-	  edm::Handle<reco::BeamSpot> beamSpotHandle;
-	  event.getByLabel(edm::InputTag("offlineBeamSpot"), beamSpotHandle);
-	  if( beamSpotHandle.isValid() ){
-	    beamSpot = *beamSpotHandle;
-	  } else{
-	    edm::LogError("DataNotAvailable")
-	      << "No beam spot available from EventSetup, not adding high level selection \n";
-	  }
-	  beamPoint = reco::TrackBase::Point ( beamSpot.x0(), beamSpot.y0(), beamSpot.z0() );
-	  double d0bs = ielectron->gsfTrack()->dxy(beamPoint);
-	  
-
-	  SimpleCutBasedElectronIDSelectionFunctor patSele95(SimpleCutBasedElectronIDSelectionFunctor::trkIso95);
-	  SimpleCutBasedElectronIDSelectionFunctor patSele70(SimpleCutBasedElectronIDSelectionFunctor::trkIso70);
-	  SimpleCutBasedElectronIDSelectionFunctor patSele95comb(SimpleCutBasedElectronIDSelectionFunctor::cIso95);
-	  SimpleCutBasedElectronIDSelectionFunctor patSele70comb(SimpleCutBasedElectronIDSelectionFunctor::cIso70);
-	  
-	  if(isLoose_){
-	    passIDLoose = patSele95(*ielectron,event);
-	    passID = patSele70(*ielectron,event);
-	  }
-	  else{
-	    passIDLoose = patSele95comb(*ielectron,event);
-	    passID = patSele70comb(*ielectron,event);
-	  }
-	  if ( ielectron->et() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
-	       (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) &&
-	       passID && fabs(d0bs) < 0.02) {
-	    selectedElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
-	  } else {
-	    // Loose cuts
-	    if ( ielectron->et() > eleEtMinLoose_ && fabs(ielectron->eta()) < eleEtaMaxLoose_ && 
-		 (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) &&
-		 passIDLoose) {
-	      looseElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
-	    }
+	Double_t pfIsolation = (ielectron->chargedHadronIso() + std::max( 0.0, ielectron->neutralHadronIso() + ielectron->photonIso() - AEff*rhoPrime )) / ielectron->pt();
+	
+	if((fabs(ielectron->superCluster()->eta()) < 0.8 && ielectron->electronID("mvaTrigV0") > 0.977 && pfIsolation < 0.093)
+	   || (fabs(ielectron->superCluster()->eta()) > 0.8 && fabs(ielectron->superCluster()->eta()) < 1.479 && ielectron->electronID("mvaTrigV0") > 0.956 && pfIsolation < 0.095)
+	   || (fabs(ielectron->superCluster()->eta()) > 1.479 && fabs(ielectron->superCluster()->eta()) < 2.5 && ielectron->electronID("mvaTrigV0") > 0.966 && pfIsolation < 0.171)){
+	    passMVAID = true;
+	}
+	if((fabs(ielectron->superCluster()->eta()) < 0.8 && ielectron->electronID("mvaNonTrigV0") > 0.877 && pfIsolation < 0.426)
+	   || (fabs(ielectron->superCluster()->eta()) > 0.8 && fabs(ielectron->superCluster()->eta()) < 1.479 && ielectron->electronID("mvaNonTrigV0") > 0.811 && pfIsolation < 0.481)
+	   || (fabs(ielectron->superCluster()->eta()) > 1.479 && fabs(ielectron->superCluster()->eta()) < 2.5 && ielectron->electronID("mvaNonTrigV0") > 0.707 && pfIsolation < 0.390)){
+	  passMVAIDLoose = true;
+	}
+	
+	if ( ielectron->p4().Pt() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
+	     (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) && passMVAID && fabs(d0PV) < 0.02 && fabs(dZPV) < 0.1 && ielectron->passConversionVeto()) {
+	  selectedElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
+	} else {
+	  // Loose cuts
+	  if ( ielectron->p4().pt() > eleEtMinLoose_ && fabs(ielectron->eta()) < eleEtaMaxLoose_ && (fabs(ielectron->superCluster()->eta()) < 1.4442 || fabs(ielectron->superCluster()->eta()) > 1.5660) && passMVAIDLoose && fabs(d0PV) < 0.04 && fabs(dZPV) < 0.2 && ielectron->passConversionVeto()) {
+	    looseElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
 	  }
 	}
-	else {
-	  if ( ielectron->et() > eleEtMin_ && fabs(ielectron->eta()) < eleEtaMax_ && 
-	       electronIdTight_(*ielectron) &&
-	       ielectron->electronID( "eidRobustTight" ) > 0  ) {
-	    selectedElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
-	  } else {
-	    // Loose cuts
-	    if ( ielectron->et() > eleEtMinLoose_ && fabs(ielectron->eta()) < eleEtaMaxLoose_ && 
-		 electronIdLoose_(*ielectron) ) {
-	      looseElectrons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Electron>( electronHandle, ielectron - electronBegin ) ) );
-	    }
-	  }	  
-	}
-      }
-      
+      } // end electron loop
+
       int nMuons = -1;
       
       for ( std::vector<pat::Muon>::const_iterator muonBegin = muonHandle->begin(),
-              muonEnd = muonHandle->end(), imuon = muonBegin;
-            imuon != muonEnd; ++imuon ) {
-        nMuons++;
-        if ( !imuon->isGlobalMuon() ) continue;
+	      muonEnd = muonHandle->end(), imuon = muonBegin;
+	    imuon != muonEnd; ++imuon ) {
+	nMuons++;
+       
+	if ( !imuon->isPFMuon() ) continue;
+	// Tight cuts
+	bool passTight = muonIdTight_(*imuon,event) && imuon->isGlobalMuon();
+	bool passLoose = muonIdLoose_(*imuon,event) && (imuon->isGlobalMuon() || imuon->isTrackerMuon());
+	
+	Double_t pfisolation = (imuon->pfIsolationR04().sumChargedHadronPt + std::max(0.0,(imuon->pfIsolationR04().sumNeutralHadronEt + imuon->pfIsolationR04().sumPhotonEt - 0.5*(imuon->pfIsolationR04().sumPUPt)))) / imuon->pt();
+	
+	double zvtx = -999;
+	if ( thePrimaryVertexColl->size() > 0 ) {
+	  zvtx = thePrimaryVertexColl->at(0).z();
+	}
+	
+	double z_mu = imuon->innerTrack()->dz(thePrimaryVertexColl->at(0).position());
+	double dz_mu = fabs(z_mu - zvtx);
+	
+	if (  imuon->pt() > muPtMin_ && fabs(imuon->eta()) < muEtaMax_ && 
+	      passTight && pfisolation < 0.12) {
+	  edm::Ptr<pat::Muon> testMuonPtr(muonHandle, nMuons);     
+	  temporaryMuons_.push_back(testMuonPtr);
+	} else {
+	  // Loose cuts
+	  if ( imuon->pt() > muPtMinLoose_ && fabs(imuon->eta()) < muEtaMaxLoose_ && 
+	       passLoose && pfisolation < 0.2) {
+	    looseMuons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Muon>( muonHandle, imuon - muonBegin ) ) );
+	  }
+	}
+      } // end muon loop 
 
-
-
-        // Tight cuts
-        bool passTight = muonIdTight_(*imuon,event) && imuon->isTrackerMuon() ;
-        if (  imuon->pt() > muPtMin_ && fabs(imuon->eta()) < muEtaMax_ && 
-              passTight) {
-
-          // dereference the iterartor
-          // and get the address of the object it points to
-          //const pat::Muon *tempMuonObj = &(*imuon);
-
-          //cout <<"===================== New event ==========================" <<endl;
-          
-          //cout << "Pushing on a muon object with pt = " << tempMuonObj->pt() << endl;
-
-          //cout << "Muon object has index nMuons = " << nMuons << endl;
-          //cout << "Calculating offset imuon-muonBegin = " << (unsigned) (imuon-muonBegin) << endl;
-          
-          edm::Ptr<pat::Muon> testMuonPtr(muonHandle, nMuons);     
-                                      
-          //cout << "Trying to test that muon object to see if we can use it's ptr" << endl;
-      
-          //cout << "Pt object ptr = " << testMuonPtr->pt() << endl;
-           
-
-        
-          temporaryMuons_.push_back(testMuonPtr);
-          
-        } else {
-          // Loose cuts
-          if ( imuon->pt() > muPtMinLoose_ && fabs(imuon->eta()) < muEtaMaxLoose_ && 
-               muonIdLoose_(*imuon,event) ) {
-            looseMuons_.push_back( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Muon>( muonHandle, imuon - muonBegin ) ) );
-          }
-        }
-
-        
-      }// end for each muon
-      
       met_ = reco::ShallowClonePtrCandidate( edm::Ptr<pat::MET>( metHandle, 0),
                                              metHandle->at(0).charge(),
                                              metHandle->at(0).p4() );
-
+      
       double deltaPx = 0.0;
       double deltaPy = 0.0;
       double deltaSumEt = 0.0;
-
+      
       event.getByLabel (jetTag_, jetHandle);
       pat::strbitset ret1 = jetIdLoose_.getBitTemplate();
       pat::strbitset ret2 = pfjetIdLoose_.getBitTemplate();
-
+      
 
       bool jetDebug = false;
 
@@ -397,8 +387,6 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
         reco::ShallowClonePtrCandidate scaledJet ( reco::ShallowClonePtrCandidate( edm::Ptr<pat::Jet>( jetHandle, ijet - jetBegin ),
                                                                                    ijet->charge(),
                                                                                    ijet->p4() * ptScale ) );
-
-
     
         bool passJetID = false;
         if ( ijet->isCaloJet() || ijet->isJPTJet() ) passJetID = jetIdLoose_(*ijet, ret1);
@@ -422,7 +410,7 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 
             if( !indeltaR ) {
               cleanedJets_.push_back( scaledJet );
-            }// end if jet is not within dR of a muon
+	    }// end if jet is not within dR of a muon
           }// end if mu+jets
           else {
             //Remove some jets
@@ -439,8 +427,7 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
           }// end if e+jets
         }// end if pass id and kin cuts
       }// end loop over jets
-
-
+      
       double corrPx = met_.px() + deltaPx;
       double corrPy = met_.py() + deltaPy;
       reco::Particle::LorentzVector corrMetLV (corrPx,
@@ -457,8 +444,6 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
              muonEnd = temporaryMuons_.end(), imuon = muonBegin;
            imuon != muonEnd; ++imuon ) {
 
-        //const pat::Muon * iMuonPtr = (*imuon);
-
         //Now, check that the muon isn't within muJetDRMuon_ of any jet
         bool inDeltaR_final = false;
         for (std::vector<reco::ShallowClonePtrCandidate>::const_iterator iJet = cleanedJets_.begin();
@@ -466,20 +451,11 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
           if ( reco::deltaR((*imuon)->eta(), (*imuon)->phi(), iJet->eta(), iJet->phi()) < muJetDRMuon_ ) inDeltaR_final = true;
         }
         if (  !inDeltaR_final  ){
-
-          //cout << " You have successfully gotten the originalObjectRef from an object with Pt = " << (*imuon)->pt() <<  endl;
-          
-          
           selectedMuons_.push_back( reco::ShallowClonePtrCandidate((*imuon)) );
         } 
         else {
           
           // Loose cuts
-          // **imuon is a double dereference
-          // de-reference the iterator
-          // de-reference the Ptr
-          // end result is a pat muon
-          
           if ( (*imuon)->pt() > muPtMinLoose_ && fabs((*imuon)->eta()) < muEtaMaxLoose_ &&
                muonIdLoose_( (**imuon), event) ) {
             // put me back in soon
@@ -487,13 +463,11 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
           }
         }
       }
-      
 
       int nleptons = 0;
       bool passlepton = false;
       if ( muPlusJets_ )
         nleptons += selectedMuons_.size();
-      
       if ( ePlusJets_ ) 
         nleptons += selectedElectrons_.size();
 
@@ -518,40 +492,23 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
             ( selectedMuons_.size() == 1 && 
               looseMuons_.size() == 0 
               );
-	  if(isHWW_){
-	    if ( ignoreCut(lep3Index_) || 
-		 (ePlusJets_ && selectedMuons_.size() == 0 && looseMuons_.size() == 0) ||
-		 (muPlusJets_ && oneMuonMuVeto)
+	  if ( ignoreCut(lep3Index_) || 
+	       (ePlusJets_ && selectedMuons_.size() == 0 && looseMuons_.size() == 0) ||
+	       (muPlusJets_ && oneMuonMuVeto)
+	       ) {
+	    passCut(ret, lep3Index_);
+	    
+	    if ( ignoreCut(lep4Index_) || 
+		 ( (muPlusJets_ &&  selectedElectrons_.size() == 0 && looseElectrons_.size() == 0) ^ 
+		   (ePlusJets_ && selectedElectrons_.size() == 1 && looseElectrons_.size() == 0 )  )
+		 //( (muPlusJets_ && oneMuon) ^ (ePlusJets_ && oneElectron )  )
+		 
 		 ) {
-	      passCut(ret, lep3Index_);
+	      passCut(ret, lep4Index_);   
+	      passlepton = true;
 	      
-	      if ( ignoreCut(lep4Index_) || 
-		   ( (muPlusJets_ &&  selectedElectrons_.size() == 0 && looseElectrons_.size() == 0) ^ 
-		     (ePlusJets_ && selectedElectrons_.size() == 1 && looseElectrons_.size() == 0 )  )
-		   //( (muPlusJets_ && oneMuon) ^ (ePlusJets_ && oneElectron )  )
-		   
-		   ) {
-		passCut(ret, lep4Index_);   
-		passlepton = true;
-	      }	      
-	    }
+	    }	      
 	  }
-	  else {
-	    if ( ignoreCut(lep3Index_) || 
-		 ePlusJets_ ||
-		 (muPlusJets_ && oneMuonMuVeto)
-		 ) {
-	      passCut(ret, lep3Index_);
-	      
-	      if ( ignoreCut(lep4Index_) || 
-		   ( (muPlusJets_ && oneMuon) ^ (ePlusJets_ && oneElectron )  )
-		   ) {
-		passCut(ret, lep4Index_);	  
-		passlepton = true;
-	      }
-	    }
-	  }
-	  
 	  if(passlepton){
 	    bool metCut = met_.pt() > metMin_;
 	    if ( ignoreCut(metIndex_) ||
@@ -568,14 +525,11 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 		   zVeto ){
 		passCut(ret, zvetoIndex_);
 		
-		
 		bool conversionVeto = true;
 		if ( ignoreCut(conversionIndex_) ||
 		     conversionVeto ) {
 		  passCut(ret,conversionIndex_);
-		  
-		  
-		  
+		  		  
 		  bool cosmicVeto = true;
 		  if ( ignoreCut(cosmicIndex_) ||
 		       cosmicVeto ) {
@@ -605,9 +559,7 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
 			 static_cast<int>(cleanedJets_.size()) >=  5 ){
 		      passCut(ret,jet5Index_);  
 		    } // end if >=5 tight jets
-		    
-		    
-		    
+
 		  } // end if cosmic veto
 		  
 		} // end if conversion veto
@@ -621,11 +573,10 @@ bool WPlusJetsEventSelector::operator() ( edm::EventBase const & event, pat::str
         } // end if == 1 tight lepton
 	
       } // end if >= 1 lepton
-
+      
     } // end if PV
-    
-  } // end if trigger
 
+  } // end if trigger
 
   setIgnored(ret);
 
