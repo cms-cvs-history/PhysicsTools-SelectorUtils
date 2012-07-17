@@ -9,6 +9,8 @@
 <use name="FWCore/FWLite"/>
 <use name="FWCore/ParameterSet"/>
 <use name="FWCore/Utilities"/>
+<use name="CondFormats/JetMETObjects"/>
+<use name="RecoVertex/PrimaryVertexProducer"/>
 <use name="rootrflx"/>
 <use name="rootcore"/>
 <use name="root"/>
@@ -25,4 +27,5 @@
   <use name="FWCore/FWLite"/>
   <use name="FWCore/ParameterSet"/>
   <use name="FWCore/Utilities"/>
+  <use name="RecoVertex/PrimaryVertexProducer"/>
 </export>
